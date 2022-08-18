@@ -485,7 +485,8 @@ struct MeshCache {
   const Entity_ID& getCellFace(const Entity_ID c, const size_type i) const;
 
   KOKKOS_INLINE_FUNCTION
-  cEntity_Direction_View getCellFaceDirections(const Entity_ID c) const;
+  decltype(auto) // cEntity_Direction_View
+  getCellFaceDirections(const Entity_ID c) const;
 
   KOKKOS_INLINE_FUNCTION
   decltype(auto) // Kokkos::pair<cEntity_ID_View, cEntity_Direction_View>

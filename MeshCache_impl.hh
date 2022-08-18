@@ -228,6 +228,66 @@ const Entity_ID& MeshCache<MEM>::getCellFace(const Entity_ID c, const size_type 
 }
 
 
+template<MemSpace_type MEM>
+KOKKOS_INLINE_FUNCTION
+decltype(auto) // cEntity_Direction_View
+MeshCache<MEM>::getCellFaceDirections(const Entity_ID c) const
+{
+  if (data_.cell_faces_cached) return data_.cell_face_directions.getRow<MEM>(c);
+  if constexpr(MEM == MemSpace_type::HOST) {
+    if (framework_mesh_.get()) {
+      Entity_Direction_List cfdirs;
+      framework_mesh_->getCellFaceDirs(c, cfdirs);
+      return cfdirs;
+    }
+  }
+  throwAccessError_("getCellFaceDirections");
+}
+
+
+template<MemSpace_type MEM>
+KOKKOS_INLINE_FUNCTION
+decltype(auto) // Kokkos::pair<cEntity_ID_View, cEntity_Direction_View>
+MeshCache<MEM>::getCellFacesAndDirections(const Entity_ID c) const
+{
+  if (data_.cell_faces_cached) {
+    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
+                        data_.cell_face_directions.getRow<MEM>(c));
+  }
+
+  if constexpr(MEM == MemSpace_type::HOST) {
+    if (framework_mesh_.get()) {
+      Entity_Direction_List cfdirs;
+      Entity_ID_List cfaces;
+      framework_mesh_->getCellFacesAndDirs(c, cfaces, &cfdirs);
+      return Kokkos::pair(cfaces, cfdirs);
+    }
+  }
+  throwAccessError_("getCellFacesAndDirections");
+}
+
+template<MemSpace_type MEM>
+KOKKOS_INLINE_FUNCTION
+decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
+MeshCache<MEM>::getCellFacesAndBisectors(const Entity_ID c) const
+{
+  if (data_.cell_faces_cached) {
+    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
+                        data_.cell_face_bisectors.getRow<MEM>(c));
+  }
+
+  if constexpr(MEM == MemSpace_type::HOST) {
+    if (framework_mesh_.get()) {
+      Point_List bisectors;
+      Entity_ID_List cfaces;
+      framework_mesh_->getCellFacesAndBisectors(c, cfaces, &bisectors);
+      return Kokkos::pair(cfaces, bisectors);
+    }
+  }
+  throwAccessError_("getCellFacesAndDirections");
+}
+
+
 // cell-face adjacencies
 template<MemSpace_type MEM>
 void MeshCache<MEM>::cacheCellFaces()
