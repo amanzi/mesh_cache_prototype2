@@ -372,61 +372,61 @@ struct MeshCache {
   // Geometry
   //---------------------
   // node locations
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // decltype(auto) // const AmanziGeometry::Point
   // getNodeCoordinate(const Entity_ID n) const;
 
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // void setNodeCoordinate(const Entity_ID n, const AmanziGeometry::Point& coord);
 
   // // coordinate views
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // cPoint_View getEdgeCoordinates(const Entity_ID e) const;
 
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // cPoint_View getFaceCoordinates(const Entity_ID f) const;
 
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // cPoint_View getCellCoordinates(const Entity_ID c) const;
 
   // cell centroids
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   AmanziGeometry::Point getCellCentroid(const Entity_ID c) const;
 
   // face centroids
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   AmanziGeometry::Point getFaceCentroid(const Entity_ID f) const;
 
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // AmanziGeometry::Point getEdgeCentroid(const Entity_ID e) const;
 
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // AmanziGeometry::Point getCentroid(const Entity_kind kind, const Entity_ID ent);
 
   // extent
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   double getCellVolume(const Entity_ID c) const;
 
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   double getFaceArea(const Entity_ID f) const;
 
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // double getEdgeLength(const Entity_ID e) const;
 
   // Normal vector of a face
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   AmanziGeometry::Point getFaceNormal(const Entity_ID f) const;
 
@@ -438,7 +438,7 @@ struct MeshCache {
   // // The orientation is 1 if the outward normal is the same direction as the
   // // natural normal, -1 if in opposite directions, and 0 if there is no natural
   // // normal.
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // AmanziGeometry::Point getFaceNormal(const Entity_ID f,
   //         const Entity_ID c, int* orientation=nullptr) const;
@@ -447,7 +447,7 @@ struct MeshCache {
   // //
   // // Orientation is the natural orientation, e.g. that it points from node 0 to
   // // node 1 with respect to edge_node adjacency information.
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // AmanziGeometry::Point getEdgeVector(const Entity_ID e) const;
 
@@ -471,7 +471,7 @@ struct MeshCache {
   //
 
   // Access pattern allows optimization when CACHED
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   size_type getCellNumFaces(const Entity_ID c) const;
 
@@ -518,7 +518,7 @@ struct MeshCache {
   // //
   // // Downward adjacency -- edges of a cell
   // //
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // size_type getCellNumEdges(const Entity_ID c) const;
 
@@ -533,7 +533,7 @@ struct MeshCache {
   // void getCellEdges(const Entity_ID c, cEntity_ID_View& edges) const;
 
   // // Get nodes of a cell.
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // size_type getCellNumNodes(const Entity_ID c) const;
 
@@ -561,7 +561,7 @@ struct MeshCache {
   // // operator will return a single edge and a direction of 1. However,
   // // this direction cannot be relied upon to compute, say, a contour
   // // integral around the 2D cell.
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // size_type getFaceNumEdges(const Entity_ID f) const;
 
@@ -589,7 +589,7 @@ struct MeshCache {
   // //
   // // In 3D, the nodes of the face are returned in ccw order consistent
   // // with the face normal.
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // size_type getFaceNumNodes(const Entity_ID f) const;
 
@@ -612,7 +612,7 @@ struct MeshCache {
   // }
 
   // // Get nodes of edge
-  // template<AccessPattern = AccessPattern::DEFAULT>
+  // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // size_type getEdgeNumNodes(const Entity_ID e) const;
 
@@ -644,7 +644,7 @@ struct MeshCache {
   // The cells are returned in no particular order. Also, the order of cells
   // is not guaranteed to be the same for corresponding faces on different
   // processors
-  template<AccessPattern = AccessPattern::DEFAULT>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   size_type getFaceNumCells(const Entity_ID f, const Parallel_type ptype) const;
 

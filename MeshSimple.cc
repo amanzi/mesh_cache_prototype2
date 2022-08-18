@@ -344,8 +344,14 @@ std::size_t MeshSimple::getNumEntities(AmanziMesh::Entity_kind kind,
     case Entity_kind::FACE:
       return (ptype != AmanziMesh::Parallel_type::GHOST) ? num_faces_ : 0;
       break;
+    case Entity_kind::BOUNDARY_FACE:
+      return -1;
+      break;
     case Entity_kind::NODE:
       return (ptype != AmanziMesh::Parallel_type::GHOST) ? num_nodes_ : 0;
+      break;
+    case Entity_kind::BOUNDARY_NODE:
+      return -1;
       break;
     case Entity_kind::CELL:
       return (ptype != AmanziMesh::Parallel_type::GHOST) ? num_cells_ : 0;
@@ -368,7 +374,7 @@ void MeshSimple::getCellFacesAndDirs(const AmanziMesh::Entity_ID cellid,
 
   faceids.clear();
   auto it = cell_to_face_.begin() + offset;
-  faceids.insert(faceids.begin(), it, it + 6);
+  faceids.insert(faceids.end(), it, it + 6);
 
   if (cfacedirs) {
     cfacedirs->clear();

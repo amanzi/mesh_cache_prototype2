@@ -4,6 +4,14 @@ project(mesh_prototype)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(default_build_type "Debug")
+if(NOT CMAKE_BUILD_TYPE)
+  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
+      STRING "Choose the type of build." FORCE)
+endif()
+
+
 find_package(MPI REQUIRED)
 find_package(Kokkos REQUIRED)
 #find_package(CUDA REQUIRED)

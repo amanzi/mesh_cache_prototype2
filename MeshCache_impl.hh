@@ -108,17 +108,23 @@ MeshCache<MEM>::setMeshFramework(const std::shared_ptr<MeshFramework>& framework
   // maps_.initialize(*framework_mesh_, natural_ordered_maps);
 
   ncells_owned = framework_mesh_->getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
-  ncells_owned = framework_mesh_->getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
+  ncells_all = framework_mesh_->getNumEntities(Entity_kind::CELL, Parallel_type::ALL);
   nfaces_owned = framework_mesh_->getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
-  nfaces_owned = framework_mesh_->getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
-  nedges_owned = framework_mesh_->getNumEntities(Entity_kind::EDGE, Parallel_type::OWNED);
-  nedges_owned = framework_mesh_->getNumEntities(Entity_kind::EDGE, Parallel_type::OWNED);
-  nnodes_owned = framework_mesh_->getNumEntities(Entity_kind::NODE, Parallel_type::OWNED);
-  nnodes_owned = framework_mesh_->getNumEntities(Entity_kind::NODE, Parallel_type::OWNED);
+  nfaces_all = framework_mesh_->getNumEntities(Entity_kind::FACE, Parallel_type::ALL);
   nboundary_faces_owned = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_FACE, Parallel_type::OWNED);
-  nboundary_faces_owned = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_FACE, Parallel_type::OWNED);
-  nboundary_nodes_owned = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_NODE, Parallel_type::OWNED);
-  nboundary_nodes_owned = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_NODE, Parallel_type::OWNED);
+  nboundary_faces_all = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_FACE, Parallel_type::ALL);
+
+  if (hasEdges()) {
+    nedges_owned = framework_mesh_->getNumEntities(Entity_kind::EDGE, Parallel_type::OWNED);
+    nedges_all = framework_mesh_->getNumEntities(Entity_kind::EDGE, Parallel_type::ALL);
+  }
+  if (hasNodes()) {
+    nnodes_owned = framework_mesh_->getNumEntities(Entity_kind::NODE, Parallel_type::OWNED);
+    nnodes_all = framework_mesh_->getNumEntities(Entity_kind::NODE, Parallel_type::ALL);
+    nboundary_nodes_owned = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_NODE, Parallel_type::OWNED);
+    nboundary_nodes_all = framework_mesh_->getNumEntities(Entity_kind::BOUNDARY_NODE, Parallel_type::ALL);
+  }
+
 }
 
 
@@ -191,6 +197,9 @@ KOKKOS_INLINE_FUNCTION
 size_type
 MeshCache<MEM>::getCellNumFaces(const Entity_ID c) const
 {
+  static_assert(AP != AccessPattern::COMPUTE);
+  static_assert(AP != AccessPattern::FRAMEWORK);
+  // this is where a generic function would probably help?
   if constexpr(AP == AccessPattern::CACHE) {
     assert(data_.cell_faces_cached);
     return data_.cell_faces.size<MEM>(c);
@@ -215,7 +224,7 @@ MeshCache<MEM>::getCellFaces(const Entity_ID c) const
       return cfaces;
     }
   }
-  throwAccessError_("getCellNumFaces");
+  throwAccessError_("getCellFaces");
 }
 
 
@@ -294,11 +303,11 @@ void MeshCache<MEM>::cacheCellFaces()
 {
   if (data_.cell_faces_cached) return;
 
-  auto get_cell_faces = [=](Entity_ID c, Entity_ID_List& cfaces) { framework_mesh_->getCellFaces(c, cfaces); };
-  data_.cell_faces = asRaggedArray_DualView<Entity_ID>(get_cell_faces, ncells_all);
+  auto lambda1 = [this](Entity_ID c, Entity_ID_List& cfaces) { this->framework_mesh_->getCellFaces(c, cfaces); };
+  data_.cell_faces = asRaggedArray_DualView<Entity_ID>(lambda1, ncells_all);
 
-  auto get_cell_face_dirs = [=](Entity_ID c, Entity_Direction_List& dirs) { framework_mesh_->getCellFaceDirs(c, dirs); };
-  data_.cell_face_directions = asRaggedArray_DualView<int>(get_cell_face_dirs, ncells_all);
+  auto lambda2 = [this](Entity_ID c, Entity_Direction_List& dirs) { this->framework_mesh_->getCellFaceDirs(c, dirs); };
+  data_.cell_face_directions = asRaggedArray_DualView<int>(lambda2, ncells_all);
   data_.cell_faces_cached = true;
 }
 
@@ -315,6 +324,9 @@ KOKKOS_INLINE_FUNCTION
 size_type
 MeshCache<MEM>::getFaceNumCells(const Entity_ID f, const Parallel_type ptype) const
 {
+  static_assert(AP != AccessPattern::COMPUTE);
+  static_assert(AP != AccessPattern::FRAMEWORK);
+  // this is where a generic function would probably help?
   if constexpr(AP == AccessPattern::CACHE) {
     assert(data_.face_cells_cached);
     if (ptype == Parallel_type::ALL) {
@@ -328,10 +340,9 @@ MeshCache<MEM>::getFaceNumCells(const Entity_ID f, const Parallel_type ptype) co
       }
       return count;
     }
-
   } else {
-    if (data_.face_cells_cached) return getFaceNumCells<AccessPattern::CACHE>(f, ptype);
-    return getFaceCells(f, ptype).size();
+    if (data_.face_cells_cached) return getFaceNumCells<AccessPattern::CACHE>(f);
+    return getFaceCells(f).size();
   }
 }
 
@@ -350,7 +361,7 @@ MeshCache<MEM>::getFaceCells(const Entity_ID f, const Parallel_type ptype) const
       return fcells;
     }
   }
-  throwAccessError_("getCellNumFaces");
+  throwAccessError_("getCellFaces");
 }
 
 
@@ -370,10 +381,213 @@ void MeshCache<MEM>::cacheFaceCells()
 {
   if (data_.face_cells_cached) return;
 
-  auto get_face_cells = [=](Entity_ID f, Entity_ID_List& fcells) { framework_mesh_->getFaceCells(f, Parallel_type::OWNED, fcells); };
-  data_.face_cells = asRaggedArray_DualView<Entity_ID>(get_face_cells, nfaces_all);
+  auto lambda = [this](Entity_ID f, Entity_ID_List& fcells) { this->framework_mesh_->getFaceCells(f, Parallel_type::OWNED, fcells); };
+  data_.face_cells = asRaggedArray_DualView<Entity_ID>(lambda, nfaces_all);
   data_.face_cells_cached = true;
 }
+
+
+// -----------------------------------------------------------------------------
+// Geometry
+// -----------------------------------------------------------------------------
+// Cell Geometry
+// -----------------------------------------------------------------------------
+
+// centroids
+template<MemSpace_type MEM>
+template<AccessPattern AP>
+KOKKOS_INLINE_FUNCTION
+AmanziGeometry::Point MeshCache<MEM>::getCellCentroid(const Entity_ID c) const
+{
+  if constexpr(AP == AccessPattern::CACHE) {
+    assert(data_.cell_geometry_cached);
+    return view<MEM>(data_.cell_centroids)[c];
+  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
+    static_assert(MEM == MemSpace_type::HOST);
+    assert(framework_mesh_.get());
+    return framework_mesh_->getCellCentroid(c);
+  } else if constexpr(AP == AccessPattern::COMPUTE) {
+    // here is where we would normally put something like
+    // return MeshAlgorithms::computeCellCentroid(*this, c);
+    // and implement the algorithm on device
+  } else {
+    if (data_.cell_geometry_cached) return getCellCentroid<AccessPattern::CACHE>(c);
+    // return getCellCentroid<AccessPattern::COMPUTE>(c);
+    return getCellCentroid<AccessPattern::FRAMEWORK>(c);
+  }
+}
+
+
+// extent
+template<MemSpace_type MEM>
+template<AccessPattern AP>
+KOKKOS_INLINE_FUNCTION
+double MeshCache<MEM>::getCellVolume(const Entity_ID c) const
+{
+  if constexpr(AP == AccessPattern::CACHE) {
+    assert(data_.cell_geometry_cached);
+    return view<MEM>(data_.cell_volumes)[c];
+  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
+    static_assert(MEM == MemSpace_type::HOST);
+    assert(framework_mesh_.get());
+    return framework_mesh_->getCellVolume(c);
+  } else if constexpr(AP == AccessPattern::COMPUTE) {
+    // here is where we would normally put something like
+    // return MeshAlgorithms::computeCellVolume(*this, c);
+    // and implement the algorithm on device
+  } else {
+    if (data_.cell_geometry_cached) return getCellVolume<AccessPattern::CACHE>(c);
+    // return getCellVolume<AccessPattern::COMPUTE>(c);
+    return getCellVolume<AccessPattern::FRAMEWORK>(c);
+  }
+}
+
+template<MemSpace_type MEM>
+void MeshCache<MEM>::cacheCellGeometry()
+{
+  assert(framework_mesh_.get());
+  if (data_.cell_geometry_cached) return;
+  data_.cell_volumes.resize(ncells_all);
+  data_.cell_centroids.resize(ncells_all);
+  for (Entity_ID i=0; i!=ncells_all; ++i) {
+    // note this must be on host
+    std::tie(view<MemSpace_type::HOST>(data_.cell_volumes)[i],
+             view<MemSpace_type::HOST>(data_.cell_centroids)[i]) =
+      framework_mesh_->computeCellGeometry(i);
+  }
+
+  data_.cell_volumes.template modify<typename Point_DualView::host_mirror_space>();
+  data_.cell_volumes.template sync<typename Point_DualView::execution_space>();
+  data_.cell_centroids.template modify<typename Point_DualView::host_mirror_space>();
+  data_.cell_centroids.template sync<typename Point_DualView::execution_space>();
+  data_.cell_geometry_cached = true;
+}
+
+
+// -----------------------------------------------------------------------------
+// Face Geometry
+// -----------------------------------------------------------------------------
+// face centroids
+template<MemSpace_type MEM>
+template<AccessPattern AP>
+KOKKOS_INLINE_FUNCTION
+AmanziGeometry::Point MeshCache<MEM>::getFaceCentroid(const Entity_ID f) const
+{
+  if constexpr(AP == AccessPattern::CACHE) {
+    assert(data_.face_geometry_cached);
+    return view<MEM>(data_.face_centroids)[f];
+  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
+    static_assert(MEM == MemSpace_type::HOST);
+    assert(framework_mesh_.get());
+    return framework_mesh_->getFaceCentroid(f);
+  } else if constexpr(AP == AccessPattern::COMPUTE) {
+    // here is where we would normally put something like
+    // return MeshAlgorithms::computeFaceCentroid(*this, f);
+    // and implement the algorithm on device
+  } else {
+    if (data_.face_geometry_cached) return getFaceCentroid<AccessPattern::CACHE>(f);
+    // return getFaceCentroid<AccessPattern::COMPUTE>(f);
+    return getFaceCentroid<AccessPattern::FRAMEWORK>(f);
+  }
+}
+
+template<MemSpace_type MEM>
+template<AccessPattern AP>
+KOKKOS_INLINE_FUNCTION
+double MeshCache<MEM>::getFaceArea(const Entity_ID f) const
+{
+  if constexpr(AP == AccessPattern::CACHE) {
+    assert(data_.face_geometry_cached);
+    return view<MEM>(data_.face_areas)[f];
+  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
+    static_assert(MEM == MemSpace_type::HOST);
+    assert(framework_mesh_.get());
+    return framework_mesh_->getFaceArea(f);
+  } else if constexpr(AP == AccessPattern::COMPUTE) {
+    // here is where we would normally put something like
+    // return MeshAlgorithms::computeFaceArea(*this, f);
+    // and implement the algorithm on device
+  } else {
+    if (data_.face_geometry_cached) return getFaceArea<AccessPattern::CACHE>(f);
+    // return getFaceArea<AccessPattern::COMPUTE>(f);
+    return getFaceArea<AccessPattern::FRAMEWORK>(f);
+  }
+}
+
+
+// Normal vector of a face
+template<MemSpace_type MEM>
+template<AccessPattern AP>
+KOKKOS_INLINE_FUNCTION
+AmanziGeometry::Point MeshCache<MEM>::getFaceNormal(const Entity_ID f) const
+{
+  if constexpr(AP == AccessPattern::CACHE) {
+    assert(data_.face_geometry_cached);
+    return data_.face_normals.get<MEM>(f,0);
+  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
+    static_assert(MEM == MemSpace_type::HOST);
+    assert(framework_mesh_.get());
+    return framework_mesh_->getFaceNormal(f);
+  } else if constexpr(AP == AccessPattern::COMPUTE) {
+    // here is where we would normally put something like
+    // return MeshAlgorithms::computeFaceNormal(*this, f);
+    // and implement the algorithm on device
+  } else {
+    if (data_.face_geometry_cached) return getFaceNormal<AccessPattern::CACHE>(f);
+    // return getFaceNormal<AccessPattern::COMPUTE>(f);
+    return getFaceNormal<AccessPattern::FRAMEWORK>(f);
+  }
+}
+
+
+template<MemSpace_type MEM>
+void MeshCache<MEM>::cacheFaceGeometry()
+{
+  assert(framework_mesh_.get());
+  if (data_.face_geometry_cached) return;
+  data_.face_areas.resize(nfaces_all);
+  data_.face_centroids.resize(nfaces_all);
+
+  // slurp down the RaggedArray for normals using a lambda that, as a side
+  // effect, captures area and centroid too.
+  auto area_view = view<MemSpace_type::HOST>(data_.face_areas);
+  auto centroid_view = view<MemSpace_type::HOST>(data_.face_centroids);
+  auto lambda = [&,this](const Entity_ID& f, Point_List& normals) {
+    auto area_cent_normal = this->framework_mesh_->computeFaceGeometry(f);
+    area_view[f] = std::get<0>(area_cent_normal);
+    centroid_view[f] = std::get<1>(area_cent_normal);
+    normals = std::get<2>(area_cent_normal);
+  };
+  data_.face_normals = asRaggedArray_DualView<AmanziGeometry::Point>(lambda, nfaces_all);
+
+  // still must sync areas/centroids
+  data_.face_areas.template modify<typename Double_DualView::host_mirror_space>();
+  data_.face_areas.template sync<typename Double_DualView::execution_space>();
+  data_.face_centroids.template modify<typename Point_DualView::host_mirror_space>();
+  data_.face_centroids.template sync<typename Point_DualView::execution_space>();
+  data_.face_geometry_cached = true;
+
+  // cache normal directions -- make this a separate call?  Think about
+  // granularity here.
+  auto lambda2 = [&,this](const Entity_ID& f, Entity_Direction_List& dirs) {
+    auto fcells = this->getFaceCells(f, Parallel_type::ALL);
+    dirs.resize(fcells.size());
+    for (int i=0; i!=fcells.size(); ++i) {
+      this->framework_mesh_->getFaceNormal(f, fcells[i], &dirs[i]);
+    }
+  };
+  data_.face_normal_directions = asRaggedArray_DualView<int>(lambda2, nfaces_all);
+
+  // cache cell-face-bisectors -- make this a separate call?  Think about
+  // granularity here.
+  auto lambda3 = [&,this](const Entity_ID& c, Point_List& bisectors) {
+    Entity_ID_List cfaces;
+    this->framework_mesh_->getCellFacesAndBisectors(c, cfaces, &bisectors);
+  };
+  data_.cell_face_bisectors = asRaggedArray_DualView<AmanziGeometry::Point>(lambda3, ncells_all);
+
+}
+
 
 
 } // namespace AmanziMesh

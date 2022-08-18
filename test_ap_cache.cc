@@ -14,10 +14,10 @@ int main(int argc, char** argv)
   {
     auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,3,3,3);
     MeshCache<MemSpace_type::DEVICE> mesh(framework_mesh);
-    mesh.cacheCellGeometry();
-    mesh.cacheFaceGeometry();
     mesh.cacheFaceCells();
     mesh.cacheCellFaces();
+    mesh.cacheCellGeometry();
+    mesh.cacheFaceGeometry();
 
     static const AccessPattern AP = AccessPattern::CACHE;
 
