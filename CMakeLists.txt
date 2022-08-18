@@ -49,6 +49,7 @@ add_test(test_framework test_framework)
 #
 # This test assumes EVERYTHING it uses is cached.
 #
+# NOTE: This one does not yet compile -- WIP!
 add_executable(test_ap_cache test_ap_cache.cc)
 target_link_libraries(test_ap_cache ${PROJECT_NAME} ${required_libs})
 add_test(test_ap_cache test_ap_cache)

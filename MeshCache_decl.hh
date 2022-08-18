@@ -179,7 +179,30 @@ namespace AmanziMesh {
 class MeshFramework;
 class MeshFrameworkAlgorithms;
 
+
 struct MeshCacheData {
+  MeshCacheData()
+    : cell_geometry_cached(false),
+      cell_faces_cached(false),
+      cell_edges_cached(false),
+      cell_nodes_cached(false),
+      cell_coordinates_cached(false),
+      face_geometry_cached(false),
+      face_cells_cached(false),
+      face_edges_cached(false),
+      face_nodes_cached(false),
+      face_coordinates_cached(false),
+      edge_geometry_cached(false),
+      edge_cells_cached(false),
+      edge_faces_cached(false),
+      edge_nodes_cached(false),
+      edge_coordinates_cached(false),
+      node_cells_cached(false),
+      node_faces_cached(false),
+      node_edges_cached(false),
+      node_coordinates_cached(false),
+      parent_entities_cached(false) {}
+
   // flags
   bool cell_geometry_cached;
   bool cell_faces_cached;
