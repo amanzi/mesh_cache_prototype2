@@ -12,7 +12,11 @@
 //! Implement detail utility functions for doing mesh cache work
 
 #pragma once
-#include "MeshDefs.hh"
+
+enum class MemSpace_type {
+  HOST,
+  DEVICE
+};
 
 
 //
@@ -160,13 +164,13 @@ asDualView(const std::vector<T>& in)
 
 // note, this template is left here despite not being used in case of future
 // refactoring for a more general struct.
-template<typename T = Entity_ID>
+template<typename T>
 struct RaggedArray_DualView {
-  DualView_type<int> rows;
-  DualView_type<T> entries;
+  Kokkos::DualView<int*> rows;
+  Kokkos::DualView<T*> entries;
 
-  using host_mirror_space = typename DualView_type<T>::host_mirror_space;
-  using execution_space = typename DualView_type<T>::execution_space;
+  using host_mirror_space = typename Kokkos::DualView<T*>::host_mirror_space;
+  using execution_space = typename Kokkos::DualView<T*>::execution_space;
 
   template<MemSpace_type MEM>
   KOKKOS_INLINE_FUNCTION
@@ -199,43 +203,6 @@ struct RaggedArray_DualView {
   int size(int row) { return view<MEM>(rows)[row+1] - view<MEM>(rows)[row]; }
 };
 
-
-//
-// Cache a RaggedArray from a callable, e.g. getCellFaces()
-//
-template<typename Func>
-RaggedArray_DualView<Entity_ID>
-asRaggedArray_DualView(Func mesh_func, Entity_ID count)
-{
-  RaggedArray_DualView<Entity_ID> adj;
-  adj.rows.resize(count+1);
-
-  // do a count first, setting rows
-  Entity_ID_List ents;
-  int total = 0;
-  for (Entity_ID i=0; i!=count; ++i) {
-    view<MemSpace_type::HOST>(adj.rows)[i] = total;
-
-    mesh_func(i, ents);
-    total += ents.size();
-  }
-  view<MemSpace_type::HOST>(adj.rows)[count] = total;
-  adj.entries.resize(total);
-
-  for (Entity_ID i=0; i!=count; ++i) {
-    mesh_func(i, ents);
-    Kokkos::View<Entity_ID*, Kokkos::DefaultHostExecutionSpace> row_view = adj.getRow<MemSpace_type::HOST>(i);
-    my_deep_copy(row_view, ents);
-  }
-
-  adj.rows.template modify<typename RaggedArray_DualView<Entity_ID>::host_mirror_space>();
-  adj.rows.template sync<typename RaggedArray_DualView<Entity_ID>::execution_space>();
-  adj.entries.template modify<typename RaggedArray_DualView<Entity_ID>::host_mirror_space>();
-  adj.entries.template sync<typename RaggedArray_DualView<Entity_ID>::execution_space>();
-  return adj;
-}
-
-} // namespace AmanziMesh
 } // namespace Amanzi
 
 

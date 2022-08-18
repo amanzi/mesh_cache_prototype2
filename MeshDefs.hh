@@ -20,6 +20,7 @@
 
 #include "Kokkos_Core.hpp"
 #include "Kokkos_DualView.hpp"
+#include "KokkosUtils.hh"
 
 #include "errors.hh"
 #include "Point.hh"
@@ -34,11 +35,6 @@ using Entity_ID = int;
 using Entity_GID = int;
 using Set_ID = int;
 using size_type = Kokkos::View<int*, Kokkos::DefaultHostExecutionSpace>::size_type;
-
-enum class MemSpace_type {
-  HOST,
-  DEVICE
-};
 
 
 //
@@ -222,6 +218,42 @@ enum class AccessPattern {
   COMPUTE,
   FRAMEWORK
 };
+
+
+//
+// Cache a RaggedArray from a callable, e.g. getCellFaces()
+//
+template<typename Func>
+RaggedArray_DualView<Entity_ID>
+asRaggedArray_DualView(Func mesh_func, Entity_ID count)
+{
+  RaggedArray_DualView<Entity_ID> adj;
+  adj.rows.resize(count+1);
+
+  // do a count first, setting rows
+  Entity_ID_List ents;
+  int total = 0;
+  for (Entity_ID i=0; i!=count; ++i) {
+    view<MemSpace_type::HOST>(adj.rows)[i] = total;
+
+    mesh_func(i, ents);
+    total += ents.size();
+  }
+  view<MemSpace_type::HOST>(adj.rows)[count] = total;
+  adj.entries.resize(total);
+
+  for (Entity_ID i=0; i!=count; ++i) {
+    mesh_func(i, ents);
+    Kokkos::View<Entity_ID*, Kokkos::DefaultHostExecutionSpace> row_view = adj.getRow<MemSpace_type::HOST>(i);
+    my_deep_copy(row_view, ents);
+  }
+
+  adj.rows.template modify<typename RaggedArray_DualView<Entity_ID>::host_mirror_space>();
+  adj.rows.template sync<typename RaggedArray_DualView<Entity_ID>::execution_space>();
+  adj.entries.template modify<typename RaggedArray_DualView<Entity_ID>::host_mirror_space>();
+  adj.entries.template sync<typename RaggedArray_DualView<Entity_ID>::execution_space>();
+  return adj;
+}
 
 
 }  // namespace AmanziMesh

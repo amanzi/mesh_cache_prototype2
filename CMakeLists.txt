@@ -38,6 +38,17 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${inc_files}")
 
 
 enable_testing()
+
+#
+# This test uses only the MeshFramework
+#
 add_executable(test_framework test_framework.cc)
 target_link_libraries(test_framework ${PROJECT_NAME} ${required_libs})
 add_test(test_framework test_framework)
+
+#
+# This test assumes EVERYTHING it uses is cached.
+#
+add_executable(test_ap_cache test_ap_cache.cc)
+target_link_libraries(test_ap_cache ${PROJECT_NAME} ${required_libs})
+add_test(test_ap_cache test_ap_cache)

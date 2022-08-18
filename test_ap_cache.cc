@@ -1,5 +1,7 @@
 #include "Point.hh"
+#include "MeshDefs.hh"
 #include "MeshSimple.hh"
+#include "MeshCache.hh"
 
 using namespace Amanzi;
 using namespace Amanzi::AmanziMesh;
@@ -17,7 +19,7 @@ int main(int argc, char** argv)
     mesh.cacheFaceCells();
     mesh.cacheCellFaces();
 
-    using AP = AccessPattern::CACHE;
+    static const AccessPattern AP = AccessPattern::CACHE;
 
     assert(3*3*3 == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
     assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume<AP>(0), 1.e-5));
@@ -25,12 +27,11 @@ int main(int argc, char** argv)
     // do some realish work
     Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
     Entity_ID nfaces = mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
-    Kokkos::DualView<double*> sums;
-    sums.resize(ncells);
+    Kokkos::DualView<double*> sums("sums", ncells);
     auto sum_device = view<MemSpace_type::DEVICE>(sums);
     Kokkos::parallel_for("normal O(N) work", ncells,
                          KOKKOS_LAMBDA(const int& c) {
-                           auto cfaces = mesh.getCellFaces<AP>(c);
+                           auto cfaces = mesh.getCellFaces(c);
                            auto cc = mesh.getCellCentroid<AP>(c);
                            AmanziGeometry::Point sum(0., 0., 0.);
                            for (int i=0; i!=cfaces.size(); ++i) {
@@ -40,21 +41,21 @@ int main(int argc, char** argv)
                            }
                            sum_device(c) = AmanziGeometry::norm(sum);
                          });
-    sums.modify<Kokkos::DefaultDevice>();
+    sums.modify<Kokkos::DefaultExecutionSpace>();
     sums.sync<Kokkos::HostSpace>();
     for (int c=0; c!=ncells; ++c) {
       assert(close(0., view<MemSpace_type::HOST>(sums)(c), 0., 1.e-6));
     }
 
     // compute the gradient of a field?
-    Kokkos::View<double*> p(ncells);
+    Kokkos::View<double*> p("p_cell", ncells);
     Kokkos::parallel_for("fill p cells", ncells,
                          KOKKOS_LAMBDA(const int& c) {
                            auto cc = mesh.getCellCentroid<AP>(c);
                            p[c] = cc[0] + cc[1];
                          });
 
-    Kokkos::View<double*> p_faces(nfaces);
+    Kokkos::View<double*> p_faces("p_face", nfaces);
     Kokkos::parallel_for("fill p faces", nfaces,
                          KOKKOS_LAMBDA(const int& f) {
                            auto fc = mesh.getFaceCentroid<AP>(f);
@@ -63,10 +64,10 @@ int main(int argc, char** argv)
 
 
     // fill the transmissiblity vector
-    Kokkos::View<double*> trans(nfaces);
+    Kokkos::View<double*> trans("trans", nfaces);
     Kokkos::parallel_for("compute trans", ncells,
                          KOKKOS_LAMBDA(const int& c) {
-                           auto cf_cb = mesh.getCellFacesAndBisectors<AP>(c);
+                           auto cf_cb = mesh.getCellFacesAndBisectors(c);
                            auto cfaces = cf_cb.first;
                            auto bisectors = cf_cb.second;
 
@@ -91,20 +92,18 @@ int main(int argc, char** argv)
 
 
     // compute the flux
-    Kokkos::DualView<double*> flux_dv;
-    flux_dv.resize(nfaces);
+    Kokkos::DualView<double*> flux_dv("flux", nfaces);
     Kokkos::View<double*> flux = view<MemSpace_type::DEVICE>(flux_dv);
-    Kokkos::deep_copy(flag, 0.);
     Kokkos::parallel_for("compute flux", ncells,
                          KOKKOS_LAMBDA(const int& c) {
-                           auto cf_cd = mesh.getCellFacesAndDirs<AP>(c);
+                           auto cf_cd = mesh.getCellFacesAndDirections(c);
                            auto cfaces = cf_cd.first;
                            auto dirs = cf_cd.second;
                            int nfaces = cfaces.size();
 
                            for (int n = 0; n < nfaces; n++) {
                              int f = cfaces[n];
-                             auto fcells = mesh.getFaceCells<AP>(f, Parallel_type::ALL);
+                             auto fcells = mesh.getFaceCells(f, Parallel_type::ALL);
                              if (fcells.size() == 1) {
                                double value = p_faces[f];
                                flux[f] = dirs[n] * trans[f] * (p[c] - value);
@@ -125,14 +124,14 @@ int main(int argc, char** argv)
                              }
                            }
                          });
-    flux_dv.modify<Kokkos::DefaultDevice>();
+    flux_dv.modify<Kokkos::DefaultExecutionSpace>();
     flux_dv.sync<Kokkos::HostSpace>();
     auto flux_h = view<MemSpace_type::HOST>(flux_dv);
 
     // check: true gradient
     AmanziGeometry::Point truth(-1.0, -1.0, 0.);
     for (int f = 0; f != nfaces; ++f) {
-      auto normal = framework_mesh.getFaceNormal(f);
+      auto normal = framework_mesh->getFaceNormal(f);
       bool result = close(normal * truth, flux_h[f], 1.e-6, 1.e-6);
       if (!result) {
         std::cout << "FAIL: " << f << std::endl
