@@ -57,7 +57,21 @@ add_test(test_framework test_framework)
 #
 # This test assumes EVERYTHING it uses is cached.
 #
-# NOTE: This one does not yet compile -- WIP!
 add_executable(test_ap_cache test_ap_cache.cc)
 target_link_libraries(test_ap_cache ${PROJECT_NAME} ${required_libs})
 add_test(test_ap_cache test_ap_cache)
+
+
+#
+# This test assumes EVERYTHING it uses is cached, and uses
+# MeshCache<HOST>
+#
+# NOTE: This one does not yet compile -- WIP!
+# add_executable(test_host_cache test_host_cache.cc)
+# target_link_libraries(test_host_cache ${PROJECT_NAME} ${required_libs})
+# add_test(test_host_cache test_host_cache)
+
+
+add_executable(test_const_correct test_const_correct.cc)
+target_link_libraries(test_const_correct ${PROJECT_NAME} ${required_libs})
+add_test(test_const_correct test_const_correct)

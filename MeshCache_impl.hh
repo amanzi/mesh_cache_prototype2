@@ -215,17 +215,39 @@ KOKKOS_INLINE_FUNCTION
 decltype(auto)
 MeshCache<MEM>::getCellFaces(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) return data_.cell_faces.getRow<MEM>(c);
+  if constexpr(MEM == MemSpace_type::HOST) {
+    Entity_ID_List cfaces;
+    getCellFaces(c, cfaces);
+    return cfaces;
+  } else {
+    Entity_ID_View cfaces;
+    getCellFaces(c, cfaces);
+    const Entity_ID_View const_cfaces = cfaces;
+    return const_cfaces;
+  }
+}
+
+
+template<MemSpace_type MEM>
+template<class Entity_ID_View_type>
+KOKKOS_INLINE_FUNCTION
+void
+MeshCache<MEM>::getCellFaces(const Entity_ID c, Entity_ID_View_type& cfaces) const
+{
+  if (data_.cell_faces_cached) {
+    cfaces = data_.cell_faces.getRow<MEM>(c);
+    return;
+  }
 
   if constexpr(MEM == MemSpace_type::HOST) {
     if (framework_mesh_.get()) {
-      Entity_ID_List cfaces;
       framework_mesh_->getCellFaces(c, cfaces);
-      return cfaces;
+      return;
     }
   }
   throwAccessError_("getCellFaces");
 }
+
 
 
 template<MemSpace_type MEM>

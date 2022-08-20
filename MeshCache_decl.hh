@@ -496,11 +496,12 @@ struct MeshCache {
   decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
   getCellFacesAndBisectors(const Entity_ID c) const;
 
-  // // NOTE: all deprecated pragmas should go back in after finished refactoring
-  // // [[deprecated("Prefer to use non-void variant that returns faces directly")]]
-  // KOKKOS_INLINE_FUNCTION
-  // void getCellFaces(const Entity_ID c,
-  //                   cEntity_ID_View& faces) const;
+  // NOTE: all deprecated pragmas should go back in after finished refactoring
+  // [[deprecated("Prefer to use non-void variant that returns faces directly")]]
+  template<typename cEntity_ID_View_type>
+  KOKKOS_INLINE_FUNCTION
+  void getCellFaces(const Entity_ID c,
+                    cEntity_ID_View_type& faces) const;
 
   // //[[deprecated("Prefer to use non-void variant that returns faces directly")]]
   // KOKKOS_INLINE_FUNCTION
@@ -781,6 +782,9 @@ struct MeshCache {
 
   // helper classes
   MeshCacheData data_;
+
+  friend MeshCache<MemSpace_type::HOST>;
+  friend MeshCache<MemSpace_type::DEVICE>;
 };
 
 
