@@ -273,9 +273,41 @@ struct MeshCacheData {
   Entity_ID_DualView parent_cells;
 };
 
+// All the members of MeshCache that are not depend of a template 
+// parameter can be placed in this MeshCacheCase. 
+// This also allows to keep the members of MeshCache private during the 
+// utilization of the "converting" constructor
+struct MeshCacheBase{ 
+
+  MeshCacheBase(); 
+
+  // standard things
+  int space_dim_;
+  int manifold_dim_;
+  bool is_ordered_;
+  bool is_logical_;
+  bool has_edges_, has_nodes_;
+
+  // related meshes
+  std::shared_ptr<MeshFramework> framework_mesh_;
+  std::shared_ptr<const MeshFrameworkAlgorithms> algorithms_;
+
+  // helper classes
+  MeshCacheData data_;
+
+  // Could also be moved to the base class
+  // sizes
+  Entity_ID ncells_owned, ncells_all;
+  Entity_ID nfaces_owned, nfaces_all;
+  Entity_ID nedges_owned, nedges_all;
+  Entity_ID nnodes_owned, nnodes_all;
+  Entity_ID nboundary_faces_owned, nboundary_faces_all;
+  Entity_ID nboundary_nodes_owned, nboundary_nodes_all;
+
+};
 
 template<MemSpace_type MEM>
-struct MeshCache {
+struct MeshCache : public MeshCacheBase {
 
   MeshCache();
 
@@ -293,8 +325,8 @@ struct MeshCache {
   // Memory-transfer constructor -- used for getting HOST-view meshes from
   // DEVICE-view meshes, and visa versa.
   //
-  template<MemSpace_type MEM_OTHER>
-  MeshCache(MeshCache<MEM_OTHER>& other);
+template<MemSpace_type MEM_OTHER>
+MeshCache(MeshCache<MEM_OTHER>& other);
 
   std::shared_ptr<const MeshFramework> getMeshFramework() const { return framework_mesh_; }
   std::shared_ptr<MeshFramework> getMeshFramework() { return framework_mesh_; }
@@ -756,31 +788,10 @@ struct MeshCache {
   // bool cells_initialized;
   // bool parents_initialized;
 
-  // sizes
-  Entity_ID ncells_owned, ncells_all;
-  Entity_ID nfaces_owned, nfaces_all;
-  Entity_ID nedges_owned, nedges_all;
-  Entity_ID nnodes_owned, nnodes_all;
-  Entity_ID nboundary_faces_owned, nboundary_faces_all;
-  Entity_ID nboundary_nodes_owned, nboundary_nodes_all;
-
  private:
   // common error messaging
   void throwAccessError_(const std::string& func_name) const;
 
-  // standard things
-  int space_dim_;
-  int manifold_dim_;
-  bool is_ordered_;
-  bool is_logical_;
-  bool has_edges_, has_nodes_;
-
-  // related meshes
-  std::shared_ptr<MeshFramework> framework_mesh_;
-  std::shared_ptr<const MeshFrameworkAlgorithms> algorithms_;
-
-  // helper classes
-  MeshCacheData data_;
 };
 
 

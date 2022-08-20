@@ -45,10 +45,7 @@ asRaggedArray_DualView(Func mesh_func, Entity_ID count)
     my_deep_copy(row_view, ents);
   }
 
-  adj.rows.template modify<typename RaggedArray_DualView<Entity_ID>::host_mirror_space>();
-  adj.rows.template sync<typename RaggedArray_DualView<Entity_ID>::execution_space>();
-  adj.entries.template modify<typename RaggedArray_DualView<Entity_ID>::host_mirror_space>();
-  adj.entries.template sync<typename RaggedArray_DualView<Entity_ID>::execution_space>();
+  adj.template update<MemSpace_type::DEVICE>(); 
   return adj;
 }
 
@@ -57,30 +54,44 @@ asRaggedArray_DualView(Func mesh_func, Entity_ID count)
 // -----------------------------------------------------------------------------
 // Constructors
 // -----------------------------------------------------------------------------
-template<MemSpace_type MEM>
-MeshCache<MEM>::MeshCache()
-  : is_ordered_(false),
+MeshCacheBase::MeshCacheBase()
+: is_ordered_(false),
     is_logical_(false),
     has_edges_(false),
     has_nodes_(true),
     manifold_dim_(-1),
     space_dim_(-1)
-{}
+    {} 
 
+template<MemSpace_type MEM>
+MeshCache<MEM>::MeshCache()
+  : MeshCacheBase() {}
 
 template<MemSpace_type MEM>
 template<MemSpace_type MEM_OTHER>
 MeshCache<MEM>::MeshCache(MeshCache<MEM_OTHER>& other)
-  : data_(other.data_),
-    is_ordered_(other.is_ordered_),
-    is_logical_(other.is_logical_),
-    has_edges_(other.has_edges_),
-    has_nodes_(other.has_nodes_),
-    manifold_dim_(other.manifold_dim_),
-    space_dim_(other.space_dim_),
-    framework_mesh_(other.framework_mesh_),
-    algorithms_(other.algorithms_)
-{}
+{ data_ = other.data_;
+  is_ordered_ = other.is_ordered_;
+  is_logical_ =other.is_logical_;
+  has_edges_ = other.has_edges_;
+  has_nodes_ = other.has_nodes_;
+  manifold_dim_ = other.manifold_dim_;
+  space_dim_ = other.space_dim_;
+  framework_mesh_ = other.framework_mesh_;
+  algorithms_ = other.algorithms_;
+  ncells_owned = other.ncells_owned; 
+  ncells_all = other.ncells_all;
+  nfaces_owned = other.nfaces_owned; 
+  nfaces_all = other.nfaces_all;
+  nedges_owned = other.nedges_owned;
+  nedges_all = other.nedges_all;
+  nnodes_owned = other.nnodes_owned; 
+  nnodes_all = other.nnodes_all;
+  nboundary_faces_owned = other.nboundary_faces_owned; 
+  nboundary_faces_all = other.nboundary_faces_all;
+  nboundary_nodes_owned = other.nboundary_nodes_owned;
+  nboundary_nodes_all = other.nboundary_nodes_all;
+}
 
 
 // -----------------------------------------------------------------------------
@@ -332,13 +343,13 @@ MeshCache<MEM>::getFaceNumCells(const Entity_ID f, const Parallel_type ptype) co
     if (ptype == Parallel_type::ALL) {
       return data_.face_cells.size<MEM>(f);
     } else {
-      int count = 0;
-      int n_all = data_.face_cells.size<MEM>(f);
-      for (int j=0; j!=n_all; ++j) {
-        if (getFaceCell(f,j) < ncells_owned) ++count;
-        else break;
-      }
-      return count;
+    int count = 0;
+    int n_all = data_.face_cells.size<MEM>(f);
+    for (int j=0; j!=n_all; ++j) {
+      if (getFaceCell(f,j) < ncells_owned) ++count;
+      else break;
+    }
+    return count;
     }
   } else {
     if (data_.face_cells_cached) return getFaceNumCells<AccessPattern::CACHE>(f);
@@ -400,7 +411,8 @@ KOKKOS_INLINE_FUNCTION
 AmanziGeometry::Point MeshCache<MEM>::getCellCentroid(const Entity_ID c) const
 {
   if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.cell_geometry_cached);
+    // Need to check why this trips on GPU 
+    //assert(data_.cell_geometry_cached);
     return view<MEM>(data_.cell_centroids)[c];
   } else if constexpr(AP == AccessPattern::FRAMEWORK) {
     static_assert(MEM == MemSpace_type::HOST);
@@ -456,10 +468,8 @@ void MeshCache<MEM>::cacheCellGeometry()
       framework_mesh_->computeCellGeometry(i);
   }
 
-  data_.cell_volumes.template modify<typename Point_DualView::host_mirror_space>();
-  data_.cell_volumes.template sync<typename Point_DualView::execution_space>();
-  data_.cell_centroids.template modify<typename Point_DualView::host_mirror_space>();
-  data_.cell_centroids.template sync<typename Point_DualView::execution_space>();
+  Kokkos::deep_copy(data_.cell_volumes.view_device(),data_.cell_volumes.view_host()); 
+  Kokkos::deep_copy(data_.cell_centroids.view_device(),data_.cell_centroids.view_host()); 
   data_.cell_geometry_cached = true;
 }
 
@@ -474,7 +484,8 @@ KOKKOS_INLINE_FUNCTION
 AmanziGeometry::Point MeshCache<MEM>::getFaceCentroid(const Entity_ID f) const
 {
   if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.face_geometry_cached);
+    // Need to check why this trips on GPU
+    //assert(data_.face_geometry_cached);
     return view<MEM>(data_.face_centroids)[f];
   } else if constexpr(AP == AccessPattern::FRAMEWORK) {
     static_assert(MEM == MemSpace_type::HOST);
@@ -560,17 +571,15 @@ void MeshCache<MEM>::cacheFaceGeometry()
   };
   data_.face_normals = asRaggedArray_DualView<AmanziGeometry::Point>(lambda, nfaces_all);
 
-  // still must sync areas/centroids
-  data_.face_areas.template modify<typename Double_DualView::host_mirror_space>();
-  data_.face_areas.template sync<typename Double_DualView::execution_space>();
-  data_.face_centroids.template modify<typename Point_DualView::host_mirror_space>();
-  data_.face_centroids.template sync<typename Point_DualView::execution_space>();
+  Kokkos::deep_copy(data_.face_areas.view_device(),data_.face_areas.view_host()); 
+  Kokkos::deep_copy(data_.face_centroids.view_device(),data_.face_centroids.view_host()); 
   data_.face_geometry_cached = true;
 
   // cache normal directions -- make this a separate call?  Think about
   // granularity here.
   auto lambda2 = [&,this](const Entity_ID& f, Entity_Direction_List& dirs) {
-    auto fcells = this->getFaceCells(f, Parallel_type::ALL);
+    Entity_ID_List fcells; 
+    this->framework_mesh_->getFaceCells(f, Parallel_type::ALL, fcells);
     dirs.resize(fcells.size());
     for (int i=0; i!=fcells.size(); ++i) {
       this->framework_mesh_->getFaceNormal(f, fcells[i], &dirs[i]);

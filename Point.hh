@@ -16,30 +16,34 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <cassert>
+#include <Kokkos_Core.hpp>
 
 namespace Amanzi {
 namespace AmanziGeometry {
 
 class Point {
  public:
-  Point() {
+  KOKKOS_INLINE_FUNCTION Point() {
     d = 0;
     xyz[0] = xyz[1] = xyz[2] = 0.0;
   }
-  Point(const Point& p) {
+  KOKKOS_INLINE_FUNCTION Point(const Point& p) {
     d = p.d;
-    std::copy(p.xyz, p.xyz+d, xyz);
+    xyz[0] = p.xyz[0]; 
+    xyz[1] = p.xyz[1];
+    xyz[2] = p.xyz[2]; 
   }
-  explicit Point(const int N) {
+  KOKKOS_INLINE_FUNCTION explicit Point(const int N) {
     d = N;
     xyz[0] = xyz[1] = xyz[2] = 0.0;    
   }
-  Point(const double& x, const double& y) {
+  KOKKOS_INLINE_FUNCTION Point(const double& x, const double& y) {
     d = 2;
     xyz[0] = x;
     xyz[1] = y;
   }
-  Point(const double& x, const double& y, const double& z) {
+  KOKKOS_INLINE_FUNCTION Point(const double& x, const double& y, const double& z) {
     d = 3;
     xyz[0] = x;
     xyz[1] = y;
@@ -48,95 +52,102 @@ class Point {
   ~Point() {};
 
   // main members
-  void set(const double& val) {
+  KOKKOS_INLINE_FUNCTION void set(const double& val) {
     assert(d > 0);
     for (int i = 0; i < d; i++) xyz[i] = val;
   }
-  void set(const Point& p) {
+  KOKKOS_INLINE_FUNCTION void set(const Point& p) {
     d = p.d;
-    std::copy(p.xyz, p.xyz+d, xyz);
+    xyz[0] = p.xyz[0]; 
+    xyz[1] = p.xyz[1];
+    xyz[2] = p.xyz[2]; 
   }
-  void set(const double *val) {
+  KOKKOS_INLINE_FUNCTION void set(const double *val) {
     assert(val);
     assert(d > 0);
-    std::copy(val, val+d, xyz);
+    xyz[0] = val[0]; 
+    xyz[1] = val[1];
+    xyz[2] = val[2]; 
   }
-  void set(const int N, const double *val) {
+  KOKKOS_INLINE_FUNCTION void set(const int N, const double *val) {
     assert(val);
     d = N;
-    std::copy(val,val+d,xyz);
+    for(int i = 0 ; i < d ; ++i)
+      xyz[i] = val[i]; 
   }
-  void set(const double& x, const double& y) {
+  KOKKOS_INLINE_FUNCTION void set(const double& x, const double& y) {
     d = 2;
     xyz[0] = x;
     xyz[1] = y;
   }
-  void set(const double& x, const double& y, const double& z) {
+  KOKKOS_INLINE_FUNCTION void set(const double& x, const double& y, const double& z) {
     d = 3;
     xyz[0] = x;
     xyz[1] = y;
     xyz[2] = z;
   }
 
-  int is_valid() { return (d == 2 || d == 3) ? 1 : 0; }
+  KOKKOS_INLINE_FUNCTION int is_valid() { return (d == 2 || d == 3) ? 1 : 0; }
 
   // access members
-  double& operator[] (const int i) { return xyz[i]; }
-  const double& operator[] (const int i) const { return xyz[i]; }
+  KOKKOS_INLINE_FUNCTION double& operator[] (const int i) { return xyz[i]; }
+  KOKKOS_INLINE_FUNCTION const double& operator[] (const int i) const { return xyz[i]; }
 
-  double x() const { return xyz[0]; }
-  double y() const { return xyz[1]; }
-  double z() const { return (d == 3) ? xyz[2] : 0.0; }
+  KOKKOS_INLINE_FUNCTION double x() const { return xyz[0]; }
+  KOKKOS_INLINE_FUNCTION double y() const { return xyz[1]; }
+  KOKKOS_INLINE_FUNCTION double z() const { return (d == 3) ? xyz[2] : 0.0; }
 
-  int dim() const { return d; }
+  KOKKOS_INLINE_FUNCTION int dim() const { return d; }
 
   // operators
-  Point& operator=(const Point& p) {
+  KOKKOS_INLINE_FUNCTION Point& operator=(const Point& p) {
     d = p.d;
-    std::copy(p.xyz, p.xyz+d, xyz);
+    xyz[0] = p.xyz[0]; 
+    xyz[1] = p.xyz[1]; 
+    xyz[2] = p.xyz[2];
     return *this;
   }
 
-  Point& operator+=(const Point& p) {
+  KOKKOS_INLINE_FUNCTION Point& operator+=(const Point& p) {
     for (int i = 0; i < d; i++) xyz[i] += p[i];
     return *this;
   }
-  Point& operator-=(const Point& p) {
+  KOKKOS_INLINE_FUNCTION Point& operator-=(const Point& p) {
     for (int i = 0; i < d; i++) xyz[i] -= p[i];
     return *this;
   }
-  Point& operator*=(const double& c) {
+  KOKKOS_INLINE_FUNCTION Point& operator*=(const double& c) {
     for (int i = 0; i < d; i++) xyz[i] *= c;
     return *this;
   }
-  Point& operator/=(const double& c) {
+  KOKKOS_INLINE_FUNCTION Point& operator/=(const double& c) {
     for (int i = 0; i < d; i++) xyz[i] /= c;
     return *this;
   }
 
-  friend Point operator*(const double& r, const Point& p) {
-    return (p.d == 2) ? Point(r*p[0], r*p[1]) : Point(r*p[0], r*p[1], r*p[2]);
+  KOKKOS_INLINE_FUNCTION friend Point operator*(const double& r, const Point& p) {
+    return Point(r*p[0], r*p[1], r*p[2]);
   }
-  friend Point operator*(const Point& p, const double& r) { return r*p; }
-  friend double operator*(const Point& p, const Point& q) {
+  KOKKOS_INLINE_FUNCTION friend Point operator*(const Point& p, const double& r) { return r*p; }
+  KOKKOS_INLINE_FUNCTION friend double operator*(const Point& p, const Point& q) {
     double s = 0.0; 
     for (int i = 0; i < p.d; i++ ) s += p[i]*q[i];
     return s;
   }
 
-  friend Point operator/(const Point& p, const double& r) { return p * (1.0/r); }
+  KOKKOS_INLINE_FUNCTION friend Point operator/(const Point& p, const double& r) { return p * (1.0/r); }
 
-  friend Point operator+(const Point& p, const Point& q) {
+  KOKKOS_INLINE_FUNCTION friend Point operator+(const Point& p, const Point& q) {
     return (p.d == 2) ? Point(p[0]+q[0], p[1]+q[1]) : Point(p[0]+q[0], p[1]+q[1], p[2]+q[2]);
   }
-  friend Point operator-(const Point& p, const Point& q) {
+  KOKKOS_INLINE_FUNCTION friend Point operator-(const Point& p, const Point& q) {
     return (p.d == 2) ? Point(p[0]-q[0], p[1]-q[1]) : Point(p[0]-q[0], p[1]-q[1], p[2]-q[2]);
   }
-  friend Point operator-(const Point& p) {
+  KOKKOS_INLINE_FUNCTION friend Point operator-(const Point& p) {
     return (p.d == 2) ? Point(-p[0], -p[1]) : Point(-p[0], -p[1], -p[2]);
   }
 
-  friend Point operator^(const Point& p, const Point& q) {
+  KOKKOS_INLINE_FUNCTION friend Point operator^(const Point& p, const Point& q) {
     Point pq(p.d);
     if (p.d == 2) {
       pq[0] = p[0] * q[1] - q[0] * p[1];
@@ -161,17 +172,17 @@ class Point {
 
 
 // Miscellaneous non-member functions
-inline double L22(const Point& p) { return p*p; }
-inline double norm(const Point& p) { return sqrt(p*p); }
+KOKKOS_INLINE_FUNCTION double L22(const Point& p) { return p*p; }
+KOKKOS_INLINE_FUNCTION double norm(const Point& p) { return sqrt(p*p); }
 
-inline bool operator==(const Point& p, const Point& q) {
+KOKKOS_INLINE_FUNCTION bool operator==(const Point& p, const Point& q) {
   if (p.dim() != q.dim()) return false;
   for (int i = 0; i < p.dim(); ++i) 
     if (p[i] != q[i]) return false;
   return true;
 }
 
-inline bool operator!=(const Point& p, const Point& q) {
+KOKKOS_INLINE_FUNCTION bool operator!=(const Point& p, const Point& q) {
   return !(p == q);
 }
 
