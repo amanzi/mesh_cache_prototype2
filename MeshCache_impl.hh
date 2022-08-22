@@ -61,7 +61,7 @@ MeshCacheBase::MeshCacheBase()
     has_nodes_(true),
     manifold_dim_(-1),
     space_dim_(-1)
-    {} 
+{} 
 
 template<MemSpace_type MEM>
 MeshCache<MEM>::MeshCache()
@@ -354,13 +354,13 @@ MeshCache<MEM>::getFaceNumCells(const Entity_ID f, const Parallel_type ptype) co
     if (ptype == Parallel_type::ALL) {
       return data_.face_cells.size<MEM>(f);
     } else {
-    int count = 0;
-    int n_all = data_.face_cells.size<MEM>(f);
-    for (int j=0; j!=n_all; ++j) {
-      if (getFaceCell(f,j) < ncells_owned) ++count;
-      else break;
-    }
-    return count;
+      int count = 0;
+      int n_all = data_.face_cells.size<MEM>(f);
+      for (int j=0; j!=n_all; ++j) {
+        if (getFaceCell(f,j) < ncells_owned) ++count;
+        else break;
+      }
+      return count;
     }
   } else {
     if (data_.face_cells_cached) return getFaceNumCells<AccessPattern::CACHE>(f);

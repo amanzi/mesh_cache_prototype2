@@ -325,8 +325,8 @@ struct MeshCache : public MeshCacheBase {
   // Memory-transfer constructor -- used for getting HOST-view meshes from
   // DEVICE-view meshes, and visa versa.
   //
-template<MemSpace_type MEM_OTHER>
-MeshCache(MeshCache<MEM_OTHER>& other);
+  template<MemSpace_type MEM_OTHER>
+  MeshCache(MeshCache<MEM_OTHER>& other);
 
   std::shared_ptr<const MeshFramework> getMeshFramework() const { return framework_mesh_; }
   std::shared_ptr<MeshFramework> getMeshFramework() { return framework_mesh_; }
