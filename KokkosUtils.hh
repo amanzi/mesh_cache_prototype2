@@ -113,7 +113,8 @@ asVector(const Kokkos::View<T*, Args...> view)
   static_assert(Kokkos::SpaceAccessibility<typename Kokkos::View<T*, Args...>::execution_space,
                 typename Kokkos::HostSpace>::accessible);
   // currently no fix for this -- C++20 will use span
-  std::vector<T> vec(view.size());
+  std::vector<T> vec;
+  vec.reserve(view.size());
   for (int i=0; i!=view.size(); ++i) vec.emplace_back(view[i]);
   return vec;
 }

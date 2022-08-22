@@ -15,7 +15,7 @@
 #include "MeshCache_decl.hh"
 #include "KokkosUtils.hh"
 #include "MeshFramework.hh"
-
+#include "Mesh_HelpersDevice_decl.hh"
 
 namespace Amanzi {
 namespace AmanziMesh {
@@ -79,7 +79,19 @@ MeshCache<MEM>::MeshCache(MeshCache<MEM_OTHER>& other)
     manifold_dim_(other.manifold_dim_),
     space_dim_(other.space_dim_),
     framework_mesh_(other.framework_mesh_),
-    algorithms_(other.algorithms_)
+    algorithms_(other.algorithms_),
+    ncells_owned(other.ncells_owned),
+    ncells_all(other.ncells_all),
+    nfaces_owned(other.nfaces_owned),
+    nfaces_all(other.nfaces_all),
+    nedges_owned(other.nedges_owned),
+    nedges_all(other.nedges_all),
+    nnodes_owned(other.nnodes_owned),
+    nnodes_all(other.nnodes_all),
+    nboundary_faces_owned(other.nboundary_faces_owned),
+    nboundary_faces_all(other.nboundary_faces_all),
+    nboundary_nodes_owned(other.nboundary_nodes_owned),
+    nboundary_nodes_all(other.nboundary_nodes_all)
 {}
 
 
@@ -220,10 +232,9 @@ MeshCache<MEM>::getCellFaces(const Entity_ID c) const
     getCellFaces(c, cfaces);
     return cfaces;
   } else {
-    Entity_ID_View cfaces;
+    cEntity_ID_View cfaces;
     getCellFaces(c, cfaces);
-    const Entity_ID_View const_cfaces = cfaces;
-    return const_cfaces;
+    return cfaces;
   }
 }
 
@@ -234,12 +245,26 @@ KOKKOS_INLINE_FUNCTION
 void
 MeshCache<MEM>::getCellFaces(const Entity_ID c, Entity_ID_View_type& cfaces) const
 {
-  if (data_.cell_faces_cached) {
-    cfaces = data_.cell_faces.getRow<MEM>(c);
-    return;
-  }
+  // Make this a generic function?  Need to confirm that, if this is on device,
+  // the view must be const to not allow a user to pass a non-const view in,
+  // get it assigned to our internal data, then overwrite the mesh's internals.
+  //
+  // What happens if a non-const View is passed in on HOST?  1, should it be
+  // possible to pass a View in on host?  2, If so, we need to confirm that it
+  // is const as well.
+  if constexpr(MEM == MemSpace_type::DEVICE) {
+    static_assert(std::is_const_v<typename Entity_ID_View_type::value_type>);
+    if (data_.cell_faces_cached) {
+      cfaces = data_.cell_faces.getRow<MEM>(c);
+      return;
+    }
 
-  if constexpr(MEM == MemSpace_type::HOST) {
+  } else {
+    if (data_.cell_faces_cached) {
+      cfaces = asVector(data_.cell_faces.getRow<MEM>(c));
+      return;
+    }
+
     if (framework_mesh_.get()) {
       framework_mesh_->getCellFaces(c, cfaces);
       return;
@@ -261,58 +286,105 @@ const Entity_ID& MeshCache<MEM>::getCellFace(const Entity_ID c, const size_type 
 
 template<MemSpace_type MEM>
 KOKKOS_INLINE_FUNCTION
-decltype(auto) // cEntity_Direction_View
-MeshCache<MEM>::getCellFaceDirections(const Entity_ID c) const
+decltype(auto) // Kokkos::pair<cEntity_ID_View, cEntity_Direction_View>
+MeshCache<MEM>::getCellFacesAndDirections(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) return data_.cell_face_directions.getRow<MEM>(c);
   if constexpr(MEM == MemSpace_type::HOST) {
-    if (framework_mesh_.get()) {
-      Entity_Direction_List cfdirs;
-      framework_mesh_->getCellFaceDirs(c, cfdirs);
-      return cfdirs;
-    }
+    Entity_ID_List cfaces;
+    Entity_Direction_List dirs;
+    getCellFacesAndDirs(c, cfaces, &dirs);
+    return Kokkos::pair(cfaces, dirs);
+  } else {
+    cEntity_ID_View cfaces;
+    cEntity_Direction_View dirs;
+    getCellFacesAndDirs(c, cfaces, &dirs);
+    return Kokkos::pair(cfaces, dirs);
   }
-  throwAccessError_("getCellFaceDirections");
 }
 
 
 template<MemSpace_type MEM>
+template<typename cEntity_ID_View_type, typename cEntity_Direction_View_type>
 KOKKOS_INLINE_FUNCTION
-decltype(auto) // Kokkos::pair<cEntity_ID_View, cEntity_Direction_View>
-MeshCache<MEM>::getCellFacesAndDirections(const Entity_ID c) const
+void
+MeshCache<MEM>::getCellFacesAndDirs(const Entity_ID c,
+                         cEntity_ID_View_type& faces,
+                         cEntity_Direction_View_type * const dirs) const
 {
-  if (data_.cell_faces_cached) {
-    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
-                        data_.cell_face_directions.getRow<MEM>(c));
-  }
+  if constexpr(MEM == MemSpace_type::DEVICE) {
+    static_assert(std::is_const_v<typename cEntity_ID_View_type::value_type>);
+    static_assert(std::is_const_v<typename cEntity_Direction_View_type::value_type>);
 
-  if constexpr(MEM == MemSpace_type::HOST) {
+    if (data_.cell_faces_cached) {
+      faces = data_.cell_faces.getRow<MEM>(c);
+      if (dirs) *dirs = data_.cell_face_directions.getRow<MEM>(c);
+      return;
+    }
+
+  } else {
+    if (data_.cell_faces_cached) {
+      faces = asVector(data_.cell_faces.getRow<MEM>(c));
+      if (dirs) *dirs = asVector(data_.cell_face_directions.getRow<MEM>(c));
+      return;
+    }
+
     if (framework_mesh_.get()) {
-      Entity_Direction_List cfdirs;
-      Entity_ID_List cfaces;
-      framework_mesh_->getCellFacesAndDirs(c, cfaces, &cfdirs);
-      return Kokkos::pair(cfaces, cfdirs);
+      framework_mesh_->getCellFacesAndDirs(c, faces, dirs);
+      return;
     }
   }
   throwAccessError_("getCellFacesAndDirections");
 }
+
 
 template<MemSpace_type MEM>
 KOKKOS_INLINE_FUNCTION
 decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
 MeshCache<MEM>::getCellFacesAndBisectors(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) {
-    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
-                        data_.cell_face_bisectors.getRow<MEM>(c));
-  }
-
   if constexpr(MEM == MemSpace_type::HOST) {
+    Entity_ID_List cfaces;
+    Point_List bisectors;
+    getCellFacesAndBisectors(c, cfaces, &bisectors);
+    return Kokkos::pair(cfaces, bisectors);
+  } else {
+    cEntity_ID_View cfaces;
+    cPoint_View bisectors;
+    getCellFacesAndBisectors(c, cfaces, &bisectors);
+    return Kokkos::pair(cfaces, bisectors);
+  }
+}
+
+
+template<MemSpace_type MEM>
+template<typename cEntity_ID_View_type, typename cPoint_View_type>
+KOKKOS_INLINE_FUNCTION
+void
+MeshCache<MEM>::getCellFacesAndBisectors(
+  const Entity_ID c,
+  cEntity_ID_View_type& faces,
+  cPoint_View_type * const bisectors) const
+{
+  if constexpr(MEM == MemSpace_type::DEVICE) {
+    static_assert(std::is_const_v<typename cEntity_ID_View_type::value_type>);
+    static_assert(std::is_const_v<typename cPoint_View_type::value_type>);
+
+    if (data_.cell_faces_cached) {
+      faces = data_.cell_faces.getRow<MEM>(c);
+      if (bisectors) *bisectors = data_.cell_face_bisectors.getRow<MEM>(c);
+      return;
+    }
+
+  } else {
+    if (data_.cell_faces_cached) {
+      faces = asVector(data_.cell_faces.getRow<MEM>(c));
+      if (bisectors) *bisectors = asVector(data_.cell_face_bisectors.getRow<MEM>(c));
+      return;
+    }
+
     if (framework_mesh_.get()) {
-      Point_List bisectors;
-      Entity_ID_List cfaces;
-      framework_mesh_->getCellFacesAndBisectors(c, cfaces, &bisectors);
-      return Kokkos::pair(cfaces, bisectors);
+      framework_mesh_->getCellFacesAndBisectors(c, faces, bisectors);
+      return;
     }
   }
   throwAccessError_("getCellFacesAndDirections");
@@ -369,21 +441,41 @@ MeshCache<MEM>::getFaceNumCells(const Entity_ID f, const Parallel_type ptype) co
 }
 
 
+// template<MemSpace_type MEM>
+// template<class Entity_ID_View_type>
+// KOKKOS_INLINE_FUNCTION
+// void
+// MeshCache<MEM>::getFaceCells(const Entity_ID f, const Parallel_type ptype, Entity_ID_View_type fcells) const
+// {
+//   if (data_.face_cells_cached) {
+//     fcells = data_.face_cells.getRow<MEM>(f);
+
+//   if constexpr(MEM == MemSpace_type::HOST) {
+//     if (framework_mesh_.get()) {
+//       Entity_ID_List fcells;
+//       framework_mesh_->getFaceCells(f, ptype, fcells);
+//       return fcells;
+//     }
+//   }
+//   throwAccessError_("getFaceCells");
+// }
+// }
+
+
 template<MemSpace_type MEM>
 KOKKOS_INLINE_FUNCTION
 decltype(auto) // cEntity_ID_View
 MeshCache<MEM>::getFaceCells(const Entity_ID f, const Parallel_type ptype) const
 {
-  if (data_.face_cells_cached) return data_.face_cells.getRow<MEM>(f);
-
   if constexpr(MEM == MemSpace_type::HOST) {
-    if (framework_mesh_.get()) {
-      Entity_ID_List fcells;
-      framework_mesh_->getFaceCells(f, ptype, fcells);
-      return fcells;
-    }
+    Entity_ID_List fcells;
+    getFaceCells(f, ptype, fcells);
+    return fcells;
+  } else {
+    cEntity_ID_View fcells;
+    getFaceCells(f, ptype, fcells);
+    return fcells;
   }
-  throwAccessError_("getCellFaces");
 }
 
 
@@ -394,6 +486,36 @@ MeshCache<MEM>::getFaceCell(const Entity_ID f, const size_type i) const
 {
   assert(data_.face_cells_cached);
   return data_.face_cells.get<MEM>(f,i);
+}
+
+
+template<MemSpace_type MEM>
+template<typename cEntity_ID_View_type>
+KOKKOS_INLINE_FUNCTION
+void
+MeshCache<MEM>::getFaceCells(const Entity_ID f,
+                             const Parallel_type ptype,
+                             cEntity_ID_View_type& fcells) const
+{
+  if constexpr(MEM == MemSpace_type::DEVICE) {
+    static_assert(std::is_const_v<typename cEntity_ID_View_type::value_type>);
+
+    if (data_.face_cells_cached) {
+      fcells = data_.face_cells.getRow<MEM>(f);
+      return;
+    }
+
+  } else {
+    if (data_.face_cells_cached) {
+      fcells = asVector(data_.face_cells.getRow<MEM>(f));
+      return;
+    }
+    if (framework_mesh_.get()) {
+      framework_mesh_->getFaceCells(f, ptype, fcells);
+      return;
+    }
+  }
+  throwAccessError_("getFaceCells");
 }
 
 
@@ -543,21 +665,47 @@ template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
 AmanziGeometry::Point MeshCache<MEM>::getFaceNormal(const Entity_ID f) const
 {
-  if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.face_geometry_cached);
-    return data_.face_normals.get<MEM>(f,0);
-  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
-    static_assert(MEM == MemSpace_type::HOST);
-    assert(framework_mesh_.get());
-    return framework_mesh_->getFaceNormal(f);
-  } else if constexpr(AP == AccessPattern::COMPUTE) {
-    // here is where we would normally put something like
-    // return MeshAlgorithms::computeFaceNormal(*this, f);
-    // and implement the algorithm on device
-  } else {
-    if (data_.face_geometry_cached) return getFaceNormal<AccessPattern::CACHE>(f);
-    // return getFaceNormal<AccessPattern::COMPUTE>(f);
-    return getFaceNormal<AccessPattern::FRAMEWORK>(f);
+  return getFaceNormal<AP>(f, -1, nullptr);
+}
+
+template<MemSpace_type MEM>
+template<AccessPattern AP>
+KOKKOS_INLINE_FUNCTION
+AmanziGeometry::Point MeshCache<MEM>::getFaceNormal(const Entity_ID f, const Entity_ID c,
+        int* orientation) const
+{
+  AmanziGeometry::Point normal;
+  if (data_.face_geometry_cached) {
+    auto fcells = getFaceCells(f, Parallel_type::ALL);
+    if (orientation) *orientation = 0;
+
+    Entity_ID cc;
+    std::size_t i;
+    if (c < 0) {
+      cc = fcells[0];
+      i = 0;
+    } else {
+      cc = c;
+      auto ncells = fcells.size();
+      for (i=0; i!=ncells; ++i)
+        if (fcells[i] == cc) break;
+    }
+    normal = data_.face_normals.get<MEM>(f,i);
+
+    if (getSpaceDimension() == getManifoldDimension()) {
+      if (c < 0) {
+        normal *= MeshAlgorithms::getFaceDirectionInCell(*this, f, cc);
+      } else if (orientation) {
+        *orientation = MeshAlgorithms::getFaceDirectionInCell(*this, f, cc);
+      }
+    } else if (c < 0) {
+      Errors::Message msg("MeshFramework: asking for the natural normal of a submanifold mesh is not valid.");
+      Exceptions::amanzi_throw(msg);
+    }
+    return normal;
+
+  } else if (framework_mesh_.get()) {
+    return framework_mesh_->getFaceNormal(f, c, orientation);
   }
 }
 

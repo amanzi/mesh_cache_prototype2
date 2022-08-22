@@ -13,15 +13,14 @@ int main(int argc, char** argv)
   Kokkos::initialize(argc, argv);
   {
     auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,3,3,3);
-    MeshCache<MemSpace_type::DEVICE> mesh(framework_mesh);
-    mesh.cacheFaceCells();
-    mesh.cacheCellFaces();
-    mesh.cacheCellGeometry();
-    mesh.cacheFaceGeometry();
+    MeshCache<MemSpace_type::DEVICE> mesh_on_device(framework_mesh);
+    // mesh_on_device.cacheFaceCells();
+    // mesh_on_device.cacheCellFaces();
+    // mesh_on_device.cacheCellGeometry();
+    // mesh_on_device.cacheFaceGeometry();
 
-    mesh.destroyFramework();
-
-    static const AccessPattern AP = AccessPattern::CACHE;
+    MeshCache<MemSpace_type::HOST> mesh(mesh_on_device);
+    static const AccessPattern AP = AccessPattern::FRAMEWORK;
 
     assert(3*3*3 == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
     assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume<AP>(0), 1.e-5));

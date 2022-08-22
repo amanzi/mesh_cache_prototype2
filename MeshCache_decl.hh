@@ -430,18 +430,18 @@ struct MeshCache {
   KOKKOS_INLINE_FUNCTION
   AmanziGeometry::Point getFaceNormal(const Entity_ID f) const;
 
-  // // Normal vector and natural direction of a face, outward with respect to a
-  // // cell.
-  // //
-  // // The vector is normalized and then weighted by the area of the face.
-  // //
-  // // The orientation is 1 if the outward normal is the same direction as the
-  // // natural normal, -1 if in opposite directions, and 0 if there is no natural
-  // // normal.
-  // template<AccessPattern AP = AccessPattern::DEFAULT>
-  // KOKKOS_INLINE_FUNCTION
-  // AmanziGeometry::Point getFaceNormal(const Entity_ID f,
-  //         const Entity_ID c, int* orientation=nullptr) const;
+  // Normal vector and natural direction of a face, outward with respect to a
+  // cell.
+  //
+  // The vector is normalized and then weighted by the area of the face.
+  //
+  // The orientation is 1 if the outward normal is the same direction as the
+  // natural normal, -1 if in opposite directions, and 0 if there is no natural
+  // normal.
+  template<AccessPattern AP = AccessPattern::DEFAULT>
+  KOKKOS_INLINE_FUNCTION
+  AmanziGeometry::Point getFaceNormal(const Entity_ID f,
+          const Entity_ID c, int* orientation=nullptr) const;
 
   // // Vector describing the edge, where the length is the edge length.
   // //
@@ -485,10 +485,6 @@ struct MeshCache {
   const Entity_ID& getCellFace(const Entity_ID c, const size_type i) const;
 
   KOKKOS_INLINE_FUNCTION
-  decltype(auto) // cEntity_Direction_View
-  getCellFaceDirections(const Entity_ID c) const;
-
-  KOKKOS_INLINE_FUNCTION
   decltype(auto) // Kokkos::pair<cEntity_ID_View, cEntity_Direction_View>
   getCellFacesAndDirections(const Entity_ID c) const;
 
@@ -496,25 +492,24 @@ struct MeshCache {
   decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
   getCellFacesAndBisectors(const Entity_ID c) const;
 
-  // NOTE: all deprecated pragmas should go back in after finished refactoring
-  // [[deprecated("Prefer to use non-void variant that returns faces directly")]]
   template<typename cEntity_ID_View_type>
   KOKKOS_INLINE_FUNCTION
   void getCellFaces(const Entity_ID c,
                     cEntity_ID_View_type& faces) const;
 
-  // //[[deprecated("Prefer to use non-void variant that returns faces directly")]]
-  // KOKKOS_INLINE_FUNCTION
-  // void getCellFacesAndDirs(const Entity_ID c,
-  //                          cEntity_ID_View& faces,
-  //                          cEntity_Direction_View * const dirs) const;
+  template<typename cEntity_ID_View_type, typename cEntity_Direction_View_type>
+  KOKKOS_INLINE_FUNCTION
+  void getCellFacesAndDirs(const Entity_ID c,
+                           cEntity_ID_View_type& faces,
+                           cEntity_Direction_View_type * const dirs) const;
 
-  // //[[deprecated("Prefer to use non-void variant that returns faces directly")]]
-  // KOKKOS_INLINE_FUNCTION
-  // void getCellFacesAndBisectors(
-  //         const Entity_ID c,
-  //         cEntity_ID_View& faces,
-  //         cPoint_View * const bisectors) const;
+
+  template<typename cEntity_ID_View_type, typename cPoint_View_type>
+  KOKKOS_INLINE_FUNCTION
+  void getCellFacesAndBisectors(
+          const Entity_ID c,
+          cEntity_ID_View_type& faces,
+          cPoint_View_type * const bisectors) const;
 
   // //
   // // Downward adjacency -- edges of a cell
@@ -656,11 +651,11 @@ struct MeshCache {
   KOKKOS_INLINE_FUNCTION
   const Entity_ID& getFaceCell(const Entity_ID f, const size_type i) const;
 
-  //[[deprecated("Prefer to use non-void variant that returns cells directly")]]
-  // KOKKOS_INLINE_FUNCTION
-  // void getFaceCells(const Entity_ID f,
-  //                   const Parallel_type ptype,
-  //                   cEntity_ID_View& cells) const;
+  template<typename cEntity_ID_View_type>
+  KOKKOS_INLINE_FUNCTION
+  void getFaceCells(const Entity_ID f,
+                    const Parallel_type ptype,
+                    cEntity_ID_View_type& cells) const;
 
   // // Cells of a given Parallel_type connected to an edge
   // //

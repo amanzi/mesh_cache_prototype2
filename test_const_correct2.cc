@@ -18,8 +18,7 @@ int main(int argc, char** argv)
 
     {
       // auto cf = mesh.getCellFaces(0);
-      Entity_ID_View cf;
-      mesh.getCellFaces(0, cf);
+      auto cf = mesh.getCellFaces(0);
       Kokkos::parallel_for("this should fail to compile", 6,
                            KOKKOS_LAMBDA(const int& i) {
                              cf(i) = -1;

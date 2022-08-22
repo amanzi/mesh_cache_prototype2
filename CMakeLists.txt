@@ -47,6 +47,20 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${inc_files}")
 
 enable_testing()
 
+function ( add_test_fails_to_compile test_name )
+  add_executable(${test_name} ${test_name}.cc)
+  target_link_libraries(${test_name} ${PROJECT_NAME} ${required_libs})
+  set_target_properties(${test_name} PROPERTIES
+    EXCLUDE_FROM_ALL TRUE
+    EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+  add_test(NAME ${test_name}
+    COMMAND ${CMAKE_COMMAND} --build . --target ${test_name}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+  set_tests_properties(${test_name} PROPERTIES WILL_FAIL TRUE)
+endfunction()
+  
+
+
 #
 # This test uses only the MeshFramework
 #
@@ -61,17 +75,25 @@ add_executable(test_ap_cache test_ap_cache.cc)
 target_link_libraries(test_ap_cache ${PROJECT_NAME} ${required_libs})
 add_test(test_ap_cache test_ap_cache)
 
+#
+# Everything from framework -- this is a trivial pass-through
+#
+add_executable(test_ap_framework test_ap_framework.cc)
+target_link_libraries(test_ap_framework ${PROJECT_NAME} ${required_libs})
+add_test(test_ap_framework test_ap_framework)
+
 
 #
 # This test assumes EVERYTHING it uses is cached, and uses
 # MeshCache<HOST>
 #
 # NOTE: This one does not yet compile -- WIP!
-# add_executable(test_host_cache test_host_cache.cc)
-# target_link_libraries(test_host_cache ${PROJECT_NAME} ${required_libs})
-# add_test(test_host_cache test_host_cache)
+add_executable(test_ap_cache_host test_ap_cache_host.cc)
+target_link_libraries(test_ap_cache_host ${PROJECT_NAME} ${required_libs})
+add_test(test_ap_cache_host test_ap_cache_host)
 
 
-add_executable(test_const_correct test_const_correct.cc)
-target_link_libraries(test_const_correct ${PROJECT_NAME} ${required_libs})
-add_test(test_const_correct test_const_correct)
+# NOTE: this adds a test that FAILS TO COMPILE
+add_test_fails_to_compile( test_const_correct )
+add_test_fails_to_compile( test_const_correct2 )
+
