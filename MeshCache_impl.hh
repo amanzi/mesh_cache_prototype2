@@ -226,14 +226,17 @@ KOKKOS_INLINE_FUNCTION
 decltype(auto)
 MeshCache<MEM>::getCellFaces(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) return data_.cell_faces.getRow<MEM>(c);
-
   if constexpr(MEM == MemSpace_type::HOST) {
+    if (data_.cell_faces_cached){ 
+      return asVector(data_.cell_faces.getRow<MEM>(c));
+    }
     if (framework_mesh_.get()) {
       Entity_ID_List cfaces;
       framework_mesh_->getCellFaces(c, cfaces);
       return cfaces;
     }
+  }else{
+    return data_.cell_faces.getRow<MEM>(c);
   }
   throwAccessError_("getCellFaces");
 }
@@ -253,13 +256,16 @@ KOKKOS_INLINE_FUNCTION
 decltype(auto) // cEntity_Direction_View
 MeshCache<MEM>::getCellFaceDirections(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) return data_.cell_face_directions.getRow<MEM>(c);
   if constexpr(MEM == MemSpace_type::HOST) {
+    if (data_.cell_faces_cached) 
+      return asVector(data_.cell_face_directions.getRow<MEM>(c));
     if (framework_mesh_.get()) {
       Entity_Direction_List cfdirs;
       framework_mesh_->getCellFaceDirs(c, cfdirs);
       return cfdirs;
     }
+  }else{ 
+    return data_.cell_face_directions.getRow<MEM>(c);
   }
   throwAccessError_("getCellFaceDirections");
 }
@@ -270,18 +276,21 @@ KOKKOS_INLINE_FUNCTION
 decltype(auto) // Kokkos::pair<cEntity_ID_View, cEntity_Direction_View>
 MeshCache<MEM>::getCellFacesAndDirections(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) {
-    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
-                        data_.cell_face_directions.getRow<MEM>(c));
-  }
 
   if constexpr(MEM == MemSpace_type::HOST) {
+    if (data_.cell_faces_cached) {
+      return Kokkos::pair(asVector(data_.cell_faces.getRow<MEM>(c)),
+                       asVector(data_.cell_face_directions.getRow<MEM>(c)));
+    }
     if (framework_mesh_.get()) {
       Entity_Direction_List cfdirs;
       Entity_ID_List cfaces;
       framework_mesh_->getCellFacesAndDirs(c, cfaces, &cfdirs);
       return Kokkos::pair(cfaces, cfdirs);
     }
+  }else{ 
+    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
+                        data_.cell_face_directions.getRow<MEM>(c));
   }
   throwAccessError_("getCellFacesAndDirections");
 }
@@ -291,18 +300,20 @@ KOKKOS_INLINE_FUNCTION
 decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
 MeshCache<MEM>::getCellFacesAndBisectors(const Entity_ID c) const
 {
-  if (data_.cell_faces_cached) {
-    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
-                        data_.cell_face_bisectors.getRow<MEM>(c));
-  }
-
   if constexpr(MEM == MemSpace_type::HOST) {
+    if (data_.cell_faces_cached) {
+      return Kokkos::pair(asVector(data_.cell_faces.getRow<MEM>(c)),
+                        asVector(data_.cell_face_bisectors.getRow<MEM>(c)));
+    }
     if (framework_mesh_.get()) {
       Point_List bisectors;
       Entity_ID_List cfaces;
       framework_mesh_->getCellFacesAndBisectors(c, cfaces, &bisectors);
       return Kokkos::pair(cfaces, bisectors);
     }
+  }else{
+    return Kokkos::pair(data_.cell_faces.getRow<MEM>(c),
+                        data_.cell_face_bisectors.getRow<MEM>(c));
   }
   throwAccessError_("getCellFacesAndDirections");
 }
@@ -363,14 +374,15 @@ KOKKOS_INLINE_FUNCTION
 decltype(auto) // cEntity_ID_View
 MeshCache<MEM>::getFaceCells(const Entity_ID f, const Parallel_type ptype) const
 {
-  if (data_.face_cells_cached) return data_.face_cells.getRow<MEM>(f);
-
   if constexpr(MEM == MemSpace_type::HOST) {
+    if (data_.face_cells_cached) return asVector(data_.face_cells.getRow<MEM>(f));
     if (framework_mesh_.get()) {
       Entity_ID_List fcells;
       framework_mesh_->getFaceCells(f, ptype, fcells);
       return fcells;
     }
+  }else{
+    return data_.face_cells.getRow<MEM>(f);
   }
   throwAccessError_("getCellFaces");
 }

@@ -27,6 +27,17 @@ int main(int argc, char** argv)
     assert(3*3*3 == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
     assert(close(0.3333333*0.3333333*0.3333333, host_mesh.getCellVolume<AP>(0), 1.e-5));
 
+    // Test to call on host 
+    // this was failing because the if(cached) of the function was not inside the HOST constexopr. 
+    // This was causing the HOST to return both a view or a vector. 
+    // Moving the call inside the constexpr and "casting" to a asVector fixes it. 
+    auto hcf = host_mesh.getCellFaces(0);
+    std::cout<<hcf[0]<<std::endl;
+    auto hcfd = host_mesh.getCellFaceDirections(0); 
+    std::cout<<hcfd[0]<<std::endl; 
+    auto hcfsds = host_mesh.getCellFacesAndDirections(0); 
+    std::cout<<hcfsds.first[0]<<std::endl; 
+
     // do some realish work
     Entity_ID ncells = host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
     Entity_ID nfaces = host_mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
@@ -130,7 +141,7 @@ int main(int argc, char** argv)
                            }
                          });
 
-    Kokkos::deep_copy(flux_dv.view_host(),flux_dv.view_host()); 
+    Kokkos::deep_copy(flux_dv.view_host(),flux_dv.view_device()); 
     auto flux_h = view<MemSpace_type::HOST>(flux_dv);
 
     // check: true gradient

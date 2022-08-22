@@ -202,6 +202,10 @@ struct RaggedArray_DualView {
 
   template<MemSpace_type MEM>
   KOKKOS_INLINE_FUNCTION
+  int size() const {return view<MEM>(rows).size()-1; }
+
+  template<MemSpace_type MEM>
+  KOKKOS_INLINE_FUNCTION
   int size(int row) const { return view<MEM>(rows)[row+1] - view<MEM>(rows)[row]; }
 
   template<MemSpace_type MEM> 
