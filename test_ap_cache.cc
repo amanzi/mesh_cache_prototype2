@@ -21,14 +21,18 @@ int main(int argc, char** argv)
 
     mesh.destroyFramework();
 
+    // Host access mesh
+    MeshCache<MemSpace_type::HOST> host_mesh(mesh);
+
     static const AccessPattern AP = AccessPattern::CACHE;
 
-    assert(3*3*3 == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
-    assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume<AP>(0), 1.e-5));
+    assert(3*3*3 == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
+    assert(close(0.3333333*0.3333333*0.3333333, host_mesh.getCellVolume<AP>(0), 1.e-5));
+
 
     // do some realish work
-    Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
-    Entity_ID nfaces = mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
+    Entity_ID ncells = host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
+    Entity_ID nfaces = host_mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
     Kokkos::DualView<double*> sums("sums", ncells);
     auto sum_device = view<MemSpace_type::DEVICE>(sums);
     Kokkos::parallel_for("normal O(N) work", ncells,
@@ -36,15 +40,17 @@ int main(int argc, char** argv)
                            auto cfaces = mesh.getCellFaces(c);
                            auto cc = mesh.getCellCentroid<AP>(c);
                            AmanziGeometry::Point sum(0., 0., 0.);
-                           for (int i=0; i!=cfaces.size(); ++i) {
+                           for (int i=0; i<cfaces.size(); ++i) {
                              auto fc = mesh.getFaceCentroid<AP>(cfaces[i]);
                              // compute sum of all bisectors
-                             sum += (fc - cc);
+                             // Need to check why the += is problematic
+                             auto tmp = (fc - cc);
+                             sum = sum + tmp;
                            }
                            sum_device(c) = AmanziGeometry::norm(sum);
                          });
-    sums.modify<Kokkos::DefaultExecutionSpace>();
-    sums.sync<Kokkos::HostSpace>();
+
+    Kokkos::deep_copy(sums.view_host(),sums.view_device());
     for (int c=0; c!=ncells; ++c) {
       assert(close(0., view<MemSpace_type::HOST>(sums)(c), 0., 1.e-6));
     }
@@ -126,8 +132,8 @@ int main(int argc, char** argv)
                              }
                            }
                          });
-    flux_dv.modify<Kokkos::DefaultExecutionSpace>();
-    flux_dv.sync<Kokkos::HostSpace>();
+
+    Kokkos::deep_copy(flux_dv.view_host(),flux_dv.view_device()); 
     auto flux_h = view<MemSpace_type::HOST>(flux_dv);
 
     // check: true gradient

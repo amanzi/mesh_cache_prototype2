@@ -345,13 +345,14 @@ std::size_t MeshSimple::getNumEntities(AmanziMesh::Entity_kind kind,
       return (ptype != AmanziMesh::Parallel_type::GHOST) ? num_faces_ : 0;
       break;
     case Entity_kind::BOUNDARY_FACE:
-      return -1;
+    //  Same problem as the constructor, cannot be -1 for std::size_t
+      return 0;
       break;
     case Entity_kind::NODE:
       return (ptype != AmanziMesh::Parallel_type::GHOST) ? num_nodes_ : 0;
       break;
     case Entity_kind::BOUNDARY_NODE:
-      return -1;
+      return 0;
       break;
     case Entity_kind::CELL:
       return (ptype != AmanziMesh::Parallel_type::GHOST) ? num_cells_ : 0;

@@ -34,7 +34,6 @@ namespace AmanziMesh {
 using Entity_ID = int;
 using Entity_GID = int;
 using Set_ID = int;
-using size_type = Kokkos::View<int*, Kokkos::DefaultHostExecutionSpace>::size_type;
 
 
 //
@@ -50,7 +49,7 @@ template<typename T> using RaggedArray_List = std::vector<std::vector<T>>;
 //
 // Views are on host or device
 //
-template<typename T> using View_type = Kokkos::View<T*, Kokkos::DefaultHostExecutionSpace>;
+template<typename T> using View_type = Kokkos::View<T*>;
 using Entity_ID_View = View_type<Entity_ID>;
 using cEntity_ID_View = View_type<const Entity_ID>;
 using Entity_GID_View = View_type<Entity_GID>;
@@ -63,7 +62,7 @@ using Double_View = View_type<double>;
 using cDouble_View = View_type<const double>;
 
 
-template<typename T> using DualView_type = Kokkos::DualView<T*, Kokkos::DefaultHostExecutionSpace>;
+template<typename T> using DualView_type = Kokkos::DualView<T*>;
 using Entity_ID_DualView = DualView_type<Entity_ID>;
 using Entity_GID_DualView = DualView_type<Entity_GID>;
 using Entity_Direction_DualView = DualView_type<int>;
@@ -86,7 +85,7 @@ struct RaggedArray_View {
 // Entity_kind::BOUNDARY_FACE is a special type of entity that is need so that process
 // kernels can define composite vectors (see src/data_structures) on
 // exterior boundary faces of the mesh only
-enum class Entity_kind
+enum class Entity_kind: int
 {
   UNKNOWN = 0,
   NODE = 1,
@@ -139,7 +138,7 @@ std::string to_string(const Entity_kind kind)
 }
 
 // Parallel status of entity
-enum class Parallel_type {
+enum class Parallel_type : int {
   UNKNOWN = 0,
   OWNED = 1,  // Owned by this processor
   GHOST = 2,  // Owned by another processor
@@ -147,7 +146,7 @@ enum class Parallel_type {
 };
 
 // Standard element types and catchall (POLYGON/POLYHED)
-enum class Cell_type {
+enum class Cell_type : int {
   UNKNOWN = 0,
   TRI = 1,
   QUAD,
@@ -178,7 +177,7 @@ std::string to_string(const Cell_type ctype)
 
 
 // Types of partitioners (partitioning scheme bundled into the name)
-enum class Partitioner_type {
+enum class Partitioner_type : int {
   METIS = 0, // default
   ZOLTAN_GRAPH,
   ZOLTAN_RCB
@@ -211,7 +210,7 @@ Partitioner_type createPartitionerType(const std::string& pstring) {
   return Partitioner_type::METIS;
 }
 
-enum class AccessPattern {
+enum class AccessPattern : int {
   DEFAULT,
   ANY,
   CACHE,

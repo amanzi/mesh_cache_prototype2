@@ -18,8 +18,9 @@ namespace Amanzi {
 namespace AmanziMesh {
 
 MeshFramework::MeshFramework()
-  : space_dim_(-1),
-    manifold_dim_(-1)
+// These cannot be -1 or cannot be std::size_t
+  : space_dim_(0),
+    manifold_dim_(0)
 {
   algorithms_ = std::make_shared<MeshFrameworkAlgorithms>();
 }

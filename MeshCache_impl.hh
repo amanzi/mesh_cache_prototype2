@@ -57,8 +57,7 @@ asRaggedArray_DualView(Func mesh_func, Entity_ID count)
 // -----------------------------------------------------------------------------
 // Constructors
 // -----------------------------------------------------------------------------
-template<MemSpace_type MEM>
-MeshCache<MEM>::MeshCache()
+MeshCacheBase::MeshCacheBase()
   : is_ordered_(false),
     is_logical_(false),
     has_edges_(false),
@@ -71,28 +70,7 @@ MeshCache<MEM>::MeshCache()
 template<MemSpace_type MEM>
 template<MemSpace_type MEM_OTHER>
 MeshCache<MEM>::MeshCache(MeshCache<MEM_OTHER>& other)
-  : data_(other.data_),
-    is_ordered_(other.is_ordered_),
-    is_logical_(other.is_logical_),
-    has_edges_(other.has_edges_),
-    has_nodes_(other.has_nodes_),
-    manifold_dim_(other.manifold_dim_),
-    space_dim_(other.space_dim_),
-    framework_mesh_(other.framework_mesh_),
-    algorithms_(other.algorithms_),
-    ncells_owned(other.ncells_owned),
-    ncells_all(other.ncells_all),
-    nfaces_owned(other.nfaces_owned),
-    nfaces_all(other.nfaces_all),
-    nedges_owned(other.nedges_owned),
-    nedges_all(other.nedges_all),
-    nnodes_owned(other.nnodes_owned),
-    nnodes_all(other.nnodes_all),
-    nboundary_faces_owned(other.nboundary_faces_owned),
-    nboundary_faces_all(other.nboundary_faces_all),
-    nboundary_nodes_owned(other.nboundary_nodes_owned),
-    nboundary_nodes_all(other.nboundary_nodes_all)
-{}
+  : MeshCacheBase(other) {}
 
 
 // -----------------------------------------------------------------------------

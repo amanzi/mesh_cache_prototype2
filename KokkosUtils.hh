@@ -18,6 +18,7 @@ enum class MemSpace_type {
   DEVICE
 };
 
+using size_type = Kokkos::View<int*, Kokkos::DefaultHostExecutionSpace>::size_type;
 
 //
 // NOTE: begin/end must live in Kokkos namespace to work!
@@ -92,6 +93,7 @@ namespace Amanzi {
 // Get the right view from a dual view
 //
 template<MemSpace_type M, typename DualView>
+KOKKOS_INLINE_FUNCTION
 auto& // Kokkos::View of the same type as DV, on M
 view(DualView& dv)
 {
@@ -177,14 +179,14 @@ struct RaggedArray_DualView {
   KOKKOS_INLINE_FUNCTION
   decltype(auto)
   getRow(int row) {
-    return Kokkos::subview(view<MEM>(entries), std::make_pair(view<MEM>(rows)[row], view<MEM>(rows)[row+1]));
+    return Kokkos::subview(view<MEM>(entries), Kokkos::make_pair(view<MEM>(rows)[row], view<MEM>(rows)[row+1]));
   }
 
   template<MemSpace_type MEM>
   KOKKOS_INLINE_FUNCTION
   decltype(auto)
   getRow(int row) const {
-    return Kokkos::subview(view<MEM>(entries), std::make_pair(view<MEM>(rows)[row], view<MEM>(rows)[row+1]));
+    return Kokkos::subview(view<MEM>(entries), Kokkos::make_pair(view<MEM>(rows)[row], view<MEM>(rows)[row+1]));
   }
 
   template<MemSpace_type MEM>
@@ -201,7 +203,23 @@ struct RaggedArray_DualView {
 
   template<MemSpace_type MEM>
   KOKKOS_INLINE_FUNCTION
-  int size(int row) { return view<MEM>(rows)[row+1] - view<MEM>(rows)[row]; }
+  int size() const {return view<MEM>(rows).size()-1; }
+
+  template<MemSpace_type MEM>
+  KOKKOS_INLINE_FUNCTION
+  int size(int row) const { return view<MEM>(rows)[row+1] - view<MEM>(rows)[row]; }
+
+  template<MemSpace_type MEM> 
+  void update(){ 
+    if constexpr (MEM == MemSpace_type::HOST){
+      Kokkos::deep_copy(rows.view_host(),rows.view_device()); 
+      Kokkos::deep_copy(entries.view_host(),entries.view_device()); 
+    }else{
+      Kokkos::deep_copy(rows.view_device(),rows.view_host()); 
+      Kokkos::deep_copy(entries.view_device(),entries.view_host()); 
+    }
+  }
+
 };
 
 } // namespace Amanzi
