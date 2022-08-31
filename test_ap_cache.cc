@@ -12,22 +12,45 @@ int main(int argc, char** argv)
 {
   Kokkos::initialize(argc, argv);
   {
-    auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,3,3,3);
+
+    assert(argc == 4); 
+    const std::size_t nx = atoi(argv[1]); 
+    const std::size_t ny = atoi(argv[2]); 
+    const std::size_t nz = atoi(argv[3]); 
+
+    std::cout<<"nx: "<<nx<<" ny: "<<ny<<" nz: "<<nz<<std::endl;
+
+    Kokkos::Timer timer; 
+    double start = timer.seconds(); 
+
+    auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,nx,ny,nz);
     MeshCache<MemSpace_type::DEVICE> mesh(framework_mesh);
+    MeshCache<MemSpace_type::HOST> host_mesh(mesh); 
+    assert(nx*ny*nz == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
+    //assert(close(0.3333333*0.3333333*0.3333333, host_mesh.getCellVolume<AP>(0), 1.e-5));
+
+    Kokkos::fence(); 
+    double stop = timer.seconds(); 
+
+    std::cout<<"ncells: "<<mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED)<<std::endl;
+    std::cout<<"Construction: "<<stop-start<<"s"<<std::endl;
+    
+    start = timer.seconds(); 
+
     mesh.cacheFaceCells();
     mesh.cacheCellFaces();
     mesh.cacheCellGeometry();
     mesh.cacheFaceGeometry();
-
     mesh.destroyFramework();
 
     // Host access mesh
     MeshCache<MemSpace_type::HOST> host_mesh(mesh);
+    Kokkos::fence(); 
+    stop = timer.seconds(); 
+    std::cout<<"Caching: "<<stop-start<<"s"<<std::endl;
+    start = timer.seconds();
 
     static const AccessPattern AP = AccessPattern::CACHE;
-
-    assert(3*3*3 == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
-    assert(close(0.3333333*0.3333333*0.3333333, host_mesh.getCellVolume<AP>(0), 1.e-5));
 
 
     // do some realish work
@@ -150,6 +173,8 @@ int main(int argc, char** argv)
       }
       assert(result);
     }
+    Kokkos::fence(); 
+    std::cout<<"Computation: "<<timer.seconds()-start<<"s"<<std::endl;
   }
   Kokkos::finalize();
 }
