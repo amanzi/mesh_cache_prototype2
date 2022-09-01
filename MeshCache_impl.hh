@@ -519,24 +519,13 @@ void MeshCache<MEM>::cacheFaceCells()
 template<MemSpace_type MEM>
 template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
-AmanziGeometry::Point MeshCache<MEM>::getCellCentroid(const Entity_ID c) const
+decltype(auto) MeshCache<MEM>::getCellCentroid(const Entity_ID c) const
 {
-  if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.cell_geometry_cached);
-    return view<MEM>(data_.cell_centroids)[c];
-  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
-    static_assert(MEM == MemSpace_type::HOST);
-    assert(framework_mesh_.get());
-    return framework_mesh_->getCellCentroid(c);
-  } else if constexpr(AP == AccessPattern::COMPUTE) {
-    // here is where we would normally put something like
-    // return MeshAlgorithms::computeCellCentroid(*this, c);
-    // and implement the algorithm on device
-  } else {
-    if (data_.cell_geometry_cached) return getCellCentroid<AccessPattern::CACHE>(c);
-    // return getCellCentroid<AccessPattern::COMPUTE>(c);
-    return getCellCentroid<AccessPattern::FRAMEWORK>(c);
-  }
+  return Getter<MEM,AP>::get(data_.cell_geometry_cached,
+    data_.cell_centroids,
+    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getCellCentroid(i); }, 
+    nullptr, 
+    c);
 }
 
 
@@ -544,24 +533,13 @@ AmanziGeometry::Point MeshCache<MEM>::getCellCentroid(const Entity_ID c) const
 template<MemSpace_type MEM>
 template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
-double MeshCache<MEM>::getCellVolume(const Entity_ID c) const
+decltype(auto) MeshCache<MEM>::getCellVolume(const Entity_ID c) const
 {
-  if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.cell_geometry_cached);
-    return view<MEM>(data_.cell_volumes)[c];
-  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
-    static_assert(MEM == MemSpace_type::HOST);
-    assert(framework_mesh_.get());
-    return framework_mesh_->getCellVolume(c);
-  } else if constexpr(AP == AccessPattern::COMPUTE) {
-    // here is where we would normally put something like
-    // return MeshAlgorithms::computeCellVolume(*this, c);
-    // and implement the algorithm on device
-  } else {
-    if (data_.cell_geometry_cached) return getCellVolume<AccessPattern::CACHE>(c);
-    // return getCellVolume<AccessPattern::COMPUTE>(c);
-    return getCellVolume<AccessPattern::FRAMEWORK>(c);
-  }
+  return Getter<MEM,AP>::get(data_.cell_geometry_cached,
+    data_.cell_volumes,
+    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getCellVolume(i); }, 
+    nullptr, 
+    c);
 }
 
 template<MemSpace_type MEM>
@@ -685,6 +663,7 @@ AmanziGeometry::Point MeshCache<MEM>::getFaceNormal(const Entity_ID f, const Ent
   } else if (framework_mesh_.get()) {
     return framework_mesh_->getFaceNormal(f, c, orientation);
   }
+  return normal; 
 }
 
 
@@ -718,7 +697,9 @@ void MeshCache<MEM>::cacheFaceGeometry()
   // cache normal directions -- make this a separate call?  Think about
   // granularity here.
   auto lambda2 = [&,this](const Entity_ID& f, Entity_Direction_List& dirs) {
-    auto fcells = this->getFaceCells(f, Parallel_type::ALL);
+    // This NEEDS to call the frarmwork or be passed an host mesh to call the function on the host. 
+    Entity_ID_List fcells; 
+    framework_mesh_->getFaceCells(f, Parallel_type::ALL, fcells);
     dirs.resize(fcells.size());
     for (int i=0; i!=fcells.size(); ++i) {
       this->framework_mesh_->getFaceNormal(f, fcells[i], &dirs[i]);

@@ -44,7 +44,6 @@ int main(int argc, char** argv)
     mesh.destroyFramework();
 
     // Host access mesh
-    MeshCache<MemSpace_type::HOST> host_mesh(mesh);
     Kokkos::fence(); 
     stop = timer.seconds(); 
     std::cout<<"Caching: "<<stop-start<<"s"<<std::endl;

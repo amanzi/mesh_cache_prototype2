@@ -305,6 +305,56 @@ struct MeshCacheBase {
   Entity_ID nboundary_nodes_owned, nboundary_nodes_all;
 };
 
+template<MemSpace_type MEM = MemSpace_type::HOST, AccessPattern AP = AccessPattern::DEFAULT> 
+struct Getter {
+  template<typename DATA, typename FF, typename CF> 
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get(bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID i){
+      // Can only do both on the host. Also need to cast to vector
+      static_assert(MEM == MemSpace_type::HOST); 
+      if (cached) return view<MEM>(d)(i);
+      if constexpr (!std::is_same<CF,decltype(nullptr)>::value)
+        return std::forward<CF>(c)(i); 
+      if constexpr (!std::is_same<FF,decltype(nullptr)>::value)
+        return std::forward<FF>(f)(i);
+  }
+}; // Getter
+
+template<MemSpace_type MEM> 
+struct Getter<MEM,AccessPattern::CACHE> {
+  template<typename DATA, typename FF, typename CF> 
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get(bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID i){
+      assert(cached);
+      return view<MEM>(d)(i);
+  }
+}; // Getter
+
+template<MemSpace_type MEM> 
+struct Getter<MEM,AccessPattern::FRAMEWORK> {
+  template<typename DATA, typename FF, typename CF> 
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get(bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID i){
+      static_assert(!std::is_same<FF,decltype(nullptr)>::value); 
+      static_assert(MEM == MemSpace_type::HOST);
+      return std::forward<CF>(f)(i);
+  }
+}; // Getter
+
+
+template<MemSpace_type MEM> 
+struct Getter<MEM,AccessPattern::COMPUTE> {
+  template<typename DATA, typename FF, typename CF> 
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get(bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID i){
+      static_assert(!std::is_same<CF,decltype(nullptr)>::value); 
+      // here is where we would normally put something like
+      // return MeshAlgorithms::computeCellVolume(*this, c);
+      // and implement the algorithm on device
+  }
+}; // Getter
+
+
 
 template<MemSpace_type MEM>
 struct MeshCache : public MeshCacheBase {
@@ -427,7 +477,7 @@ struct MeshCache : public MeshCacheBase {
   // cell centroids
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
-  AmanziGeometry::Point getCellCentroid(const Entity_ID c) const;
+  decltype(auto) getCellCentroid(const Entity_ID c) const;
 
   // face centroids
   template<AccessPattern AP = AccessPattern::DEFAULT>
@@ -444,8 +494,8 @@ struct MeshCache : public MeshCacheBase {
 
   // extent
   template<AccessPattern AP = AccessPattern::DEFAULT>
-  KOKKOS_INLINE_FUNCTION
-  double getCellVolume(const Entity_ID c) const;
+  KOKKOS_INLINE_FUNCTION // double
+  decltype(auto) getCellVolume(const Entity_ID c) const;
 
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
