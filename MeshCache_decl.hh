@@ -310,13 +310,16 @@ struct Getter {
   template<typename DATA, typename FF, typename CF> 
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
   get(bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID i){
-      // Can only do both on the host. Also need to cast to vector
+      using type_t = typename DATA::t_dev::traits::value_type; 
+      // To avoid the cast to non-reference 
+      type_t res; 
       static_assert(MEM == MemSpace_type::HOST); 
-      if (cached) return view<MEM>(d)(i);
+      if (cached) res = view<MEM>(d)(i);
       if constexpr (!std::is_same<CF,decltype(nullptr)>::value)
-        return std::forward<CF>(c)(i); 
+        res = c(i);
       if constexpr (!std::is_same<FF,decltype(nullptr)>::value)
-        return std::forward<FF>(f)(i);
+        res = f(i);
+      return res; 
   }
 }; // Getter
 
@@ -337,7 +340,7 @@ struct Getter<MEM,AccessPattern::FRAMEWORK> {
   get(bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID i){
       static_assert(!std::is_same<FF,decltype(nullptr)>::value); 
       static_assert(MEM == MemSpace_type::HOST);
-      return std::forward<CF>(f)(i);
+      return f(i);
   }
 }; // Getter
 
@@ -354,6 +357,57 @@ struct Getter<MEM,AccessPattern::COMPUTE> {
   }
 }; // Getter
 
+
+// Getters for raggedViews
+template<MemSpace_type MEM = MemSpace_type::HOST, AccessPattern AP = AccessPattern::DEFAULT>
+struct RaggedGetter{ 
+  template<typename DATA, typename FF, typename CF>
+  static KOKKOS_INLINE_FUNCTION decltype(auto)
+  get (bool cached, DATA& d, FF&& f, CF&& c, const Entity_ID n) {
+    static_assert(MEM == MemSpace_type::HOST); 
+    if (cached) {
+      auto v = d.template getRow<MEM>(n);
+      return asVector(v); 
+    }
+    if constexpr (!std::is_same<FF,decltype(nullptr)>::value)
+      return f(n); 
+    if constexpr (!std::is_same<CF,decltype(nullptr)>::value) 
+      return c(c); 
+  }
+};
+
+template<MemSpace_type MEM>
+struct RaggedGetter<MEM,AccessPattern::CACHE>{
+  template<typename DATA, typename FF, typename CF>
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get (bool cached, DATA& d, FF&&, CF&&, const Entity_ID n) { 
+    assert(cached);
+    return d.template getRow<MEM>(n); 
+  }
+};
+
+template<MemSpace_type MEM>
+struct RaggedGetter<MEM,AccessPattern::FRAMEWORK>{
+  template<typename DATA, typename FF, typename CF>
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get (bool cached, DATA&, FF&& f, CF&& c, const Entity_ID n) { 
+    static_assert(!std::is_same<FF,decltype(nullptr)>::value); 
+    static_assert(MEM == MemSpace_type::HOST);
+    return f(n);
+  }
+};
+
+template<MemSpace_type MEM>
+struct RaggedGetter<MEM,AccessPattern::COMPUTE>{
+  template<typename DATA, typename FF, typename CF>
+  static KOKKOS_INLINE_FUNCTION decltype(auto) 
+  get (bool cached, DATA&, FF&&, CF&& c, const std::string& s, const Entity_ID n) { 
+      static_assert(!std::is_same<CF,decltype(nullptr)>::value); 
+      // here is where we would normally put something like
+      // return MeshAlgorithms::computeCellVolume(*this, c);
+      // and implement the algorithm on device 
+  }
+};
 
 
 template<MemSpace_type MEM>
@@ -375,6 +429,13 @@ struct MeshCache : public MeshCacheBase {
   //
   template<MemSpace_type MEM_OTHER>
   MeshCache(MeshCache<MEM_OTHER>& other);
+
+  // Get view type based on mem 
+  template<typename T>
+  using data_type = typename std::conditional<
+      MEM==MemSpace_type::HOST,
+      std::vector<T>,
+      Kokkos::View<T*>>::type;
 
   std::shared_ptr<const MeshFramework> getMeshFramework() const { return framework_mesh_; }
   std::shared_ptr<MeshFramework> getMeshFramework() { return framework_mesh_; }
@@ -428,12 +489,12 @@ struct MeshCache : public MeshCacheBase {
   // Accessors and Mutators
   // ----------------------
   // space dimension describes the dimension of coordinates in space
-  std::size_t getSpaceDimension() const { return space_dim_; }
+  KOKKOS_INLINE_FUNCTION std::size_t getSpaceDimension() const { return space_dim_; }
   void setSpaceDimension(unsigned int dim) { space_dim_ = dim; }
 
   // manifold dimension describes the dimensionality of the corresponding R^n
   // manifold onto which this mesh can be projected.
-  std::size_t getManifoldDimension() const { return manifold_dim_; }
+  KOKKOS_INLINE_FUNCTION std::size_t getManifoldDimension() const { return manifold_dim_; }
   void setManifoldDimension(const unsigned int dim) { manifold_dim_ = dim; }
 
   // mesh properties
@@ -556,6 +617,7 @@ struct MeshCache : public MeshCacheBase {
   size_type getCellNumFaces(const Entity_ID c) const;
 
   // note, no AccessPattern -- as this creates a view there is no need
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   decltype(auto) // cEntity_ID_View
   getCellFaces(const Entity_ID c) const;
@@ -572,10 +634,10 @@ struct MeshCache : public MeshCacheBase {
   decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
   getCellFacesAndBisectors(const Entity_ID c) const;
 
-  template<typename cEntity_ID_View_type>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   void getCellFaces(const Entity_ID c,
-                    cEntity_ID_View_type& faces) const;
+                    data_type<Entity_ID>& faces) const;
 
   template<typename cEntity_ID_View_type, typename cEntity_Direction_View_type>
   KOKKOS_INLINE_FUNCTION
@@ -834,7 +896,7 @@ struct MeshCache : public MeshCacheBase {
 
  private:
   // common error messaging
-  void throwAccessError_(const std::string& func_name) const;
+  KOKKOS_INLINE_FUNCTION void throwAccessError_(const std::string& func_name) const;
 
 };
 

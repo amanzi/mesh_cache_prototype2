@@ -164,7 +164,7 @@ MeshCache<MEM>::getNumEntities(const Entity_kind kind, const Parallel_type ptype
 
 // common error messaging
 template<MemSpace_type MEM>
-void MeshCache<MEM>::throwAccessError_(const std::string& func_name) const
+KOKKOS_INLINE_FUNCTION void MeshCache<MEM>::throwAccessError_(const std::string& func_name) const
 {
   Errors::Message msg;
   msg << "MeshCache<MEM>" << func_name << " cannot compute this quantity -- not cached and framework does not exist.";
@@ -199,56 +199,33 @@ MeshCache<MEM>::getCellNumFaces(const Entity_ID c) const
   }
 }
 
-
 template<MemSpace_type MEM>
+template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
 decltype(auto)
 MeshCache<MEM>::getCellFaces(const Entity_ID c) const
 {
-  if constexpr(MEM == MemSpace_type::HOST) {
-    Entity_ID_List cfaces;
-    getCellFaces(c, cfaces);
-    return cfaces;
-  } else {
-    cEntity_ID_View cfaces;
-    getCellFaces(c, cfaces);
-    return cfaces;
-  }
+  MeshCache<MEM>::data_type<Entity_ID> cfaces; 
+  getCellFaces<AP>(c, cfaces);
+  return cfaces; 
 }
 
 
 template<MemSpace_type MEM>
-template<class Entity_ID_View_type>
+template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
 void
-MeshCache<MEM>::getCellFaces(const Entity_ID c, Entity_ID_View_type& cfaces) const
+MeshCache<MEM>::getCellFaces(const Entity_ID c,
+  MeshCache<MEM>::data_type<Entity_ID>& cfaces) const
 {
-  // Make this a generic function?  Need to confirm that, if this is on device,
-  // the view must be const to not allow a user to pass a non-const view in,
-  // get it assigned to our internal data, then overwrite the mesh's internals.
-  //
-  // What happens if a non-const View is passed in on HOST?  1, should it be
-  // possible to pass a View in on host?  2, If so, we need to confirm that it
-  // is const as well.
-  if constexpr(MEM == MemSpace_type::DEVICE) {
-    static_assert(std::is_const_v<typename Entity_ID_View_type::value_type>);
-    if (data_.cell_faces_cached) {
-      cfaces = data_.cell_faces.getRow<MEM>(c);
-      return;
-    }
-
-  } else {
-    if (data_.cell_faces_cached) {
-      cfaces = asVector(data_.cell_faces.getRow<MEM>(c));
-      return;
-    }
-
-    if (framework_mesh_.get()) {
-      framework_mesh_->getCellFaces(c, cfaces);
-      return;
-    }
-  }
-  throwAccessError_("getCellFaces");
+  cfaces = RaggedGetter<MEM,AP>::get(data_.cell_faces_cached,
+    data_.cell_faces,
+    [&](const int i) { assert(framework_mesh_.get()); 
+      std::vector<Entity_ID> cf; 
+      framework_mesh_->getCellFaces(i, cf);
+      return cf; }, 
+    nullptr, 
+    c);
 }
 
 
@@ -573,22 +550,11 @@ template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
 AmanziGeometry::Point MeshCache<MEM>::getFaceCentroid(const Entity_ID f) const
 {
-  if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.face_geometry_cached);
-    return view<MEM>(data_.face_centroids)[f];
-  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
-    static_assert(MEM == MemSpace_type::HOST);
-    assert(framework_mesh_.get());
-    return framework_mesh_->getFaceCentroid(f);
-  } else if constexpr(AP == AccessPattern::COMPUTE) {
-    // here is where we would normally put something like
-    // return MeshAlgorithms::computeFaceCentroid(*this, f);
-    // and implement the algorithm on device
-  } else {
-    if (data_.face_geometry_cached) return getFaceCentroid<AccessPattern::CACHE>(f);
-    // return getFaceCentroid<AccessPattern::COMPUTE>(f);
-    return getFaceCentroid<AccessPattern::FRAMEWORK>(f);
-  }
+  return Getter<MEM,AP>::get(data_.face_geometry_cached,
+    data_.face_centroids,
+    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getFaceCentroid(i); }, 
+    nullptr, 
+    f);
 }
 
 template<MemSpace_type MEM>
@@ -596,22 +562,11 @@ template<AccessPattern AP>
 KOKKOS_INLINE_FUNCTION
 double MeshCache<MEM>::getFaceArea(const Entity_ID f) const
 {
-  if constexpr(AP == AccessPattern::CACHE) {
-    assert(data_.face_geometry_cached);
-    return view<MEM>(data_.face_areas)[f];
-  } else if constexpr(AP == AccessPattern::FRAMEWORK) {
-    static_assert(MEM == MemSpace_type::HOST);
-    assert(framework_mesh_.get());
-    return framework_mesh_->getFaceArea(f);
-  } else if constexpr(AP == AccessPattern::COMPUTE) {
-    // here is where we would normally put something like
-    // return MeshAlgorithms::computeFaceArea(*this, f);
-    // and implement the algorithm on device
-  } else {
-    if (data_.face_geometry_cached) return getFaceArea<AccessPattern::CACHE>(f);
-    // return getFaceArea<AccessPattern::COMPUTE>(f);
-    return getFaceArea<AccessPattern::FRAMEWORK>(f);
-  }
+  return Getter<MEM,AP>::get(data_.face_geometry_cached,
+    data_.face_areas,
+    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getFaceArea(i); }, 
+    nullptr, 
+    f);
 }
 
 
@@ -631,39 +586,42 @@ AmanziGeometry::Point MeshCache<MEM>::getFaceNormal(const Entity_ID f, const Ent
         int* orientation) const
 {
   AmanziGeometry::Point normal;
-  if (data_.face_geometry_cached) {
-    auto fcells = getFaceCells(f, Parallel_type::ALL);
-    if (orientation) *orientation = 0;
-
-    Entity_ID cc;
-    std::size_t i;
-    if (c < 0) {
-      cc = fcells[0];
-      i = 0;
-    } else {
-      cc = c;
-      auto ncells = fcells.size();
-      for (i=0; i!=ncells; ++i)
-        if (fcells[i] == cc) break;
-    }
-    normal = data_.face_normals.get<MEM>(f,i);
-
-    if (getSpaceDimension() == getManifoldDimension()) {
-      if (c < 0) {
-        normal *= MeshAlgorithms::getFaceDirectionInCell(*this, f, cc);
-      } else if (orientation) {
-        *orientation = MeshAlgorithms::getFaceDirectionInCell(*this, f, cc);
-      }
-    } else if (c < 0) {
-      Errors::Message msg("MeshFramework: asking for the natural normal of a submanifold mesh is not valid.");
-      Exceptions::amanzi_throw(msg);
-    }
-    return normal;
-
-  } else if (framework_mesh_.get()) {
-    return framework_mesh_->getFaceNormal(f, c, orientation);
+  if constexpr (MEM == MemSpace_type::DEVICE){
+    assert(data_.face_geometry_cached); 
+  }else {
+    if(!data_.face_geometry_cached)
+      if (framework_mesh_.get()) 
+        return framework_mesh_->getFaceNormal(f, c, orientation);
   }
-  return normal; 
+
+  auto fcells = getFaceCells(f, Parallel_type::ALL);
+  if (orientation) *orientation = 0;
+
+  Entity_ID cc;
+  std::size_t i;
+  if (c < 0) {
+    cc = fcells[0];
+    i = 0;
+  } else {
+    cc = c;
+    auto ncells = fcells.size();
+    for (i=0; i!=ncells; ++i)
+      if (fcells[i] == cc) break;
+  }
+  normal = data_.face_normals.get<MEM>(f,i);
+
+  if (getSpaceDimension() == getManifoldDimension()) {
+    if (c < 0) {
+      normal *= MeshAlgorithms::getFaceDirectionInCell(*this, f, cc);
+    } else if (orientation) {
+      *orientation = MeshAlgorithms::getFaceDirectionInCell(*this, f, cc);
+    }
+  } else if (c < 0) {
+    Errors::Message msg("MeshFramework: asking for the natural normal of a submanifold mesh is not valid.");
+    Exceptions::amanzi_throw(msg);
+  }
+  return normal;
+
 }
 
 
@@ -697,7 +655,7 @@ void MeshCache<MEM>::cacheFaceGeometry()
   // cache normal directions -- make this a separate call?  Think about
   // granularity here.
   auto lambda2 = [&,this](const Entity_ID& f, Entity_Direction_List& dirs) {
-    // This NEEDS to call the frarmwork or be passed an host mesh to call the function on the host. 
+    // This NEEDS to call the framework or be passed an host mesh to call the function on the host. 
     Entity_ID_List fcells; 
     framework_mesh_->getFaceCells(f, Parallel_type::ALL, fcells);
     dirs.resize(fcells.size());

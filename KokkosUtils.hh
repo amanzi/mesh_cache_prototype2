@@ -169,6 +169,16 @@ asDualView(const std::vector<T>& in)
 // refactoring for a more general struct.
 template<typename T>
 struct RaggedArray_DualView {
+  using type_t = T; 
+
+  template<MemSpace_type MEM>
+  using constview = 
+    Kokkos::View<const T*,
+    std::conditional<
+      MEM==MemSpace_type::DEVICE,
+      Kokkos::DefaultExecutionSpace,
+      Kokkos::HostSpace>>; 
+
   Kokkos::DualView<int*> rows;
   Kokkos::DualView<T*> entries;
 

@@ -59,7 +59,7 @@ int main(int argc, char** argv)
     auto sum_device = view<MemSpace_type::DEVICE>(sums);
     Kokkos::parallel_for("normal O(N) work", ncells,
                          KOKKOS_LAMBDA(const int& c) {
-                           auto cfaces = mesh.getCellFaces(c);
+                           auto cfaces = mesh.getCellFaces<AP>(c);
                            auto cc = mesh.getCellCentroid<AP>(c);
                            AmanziGeometry::Point sum(0., 0., 0.);
                            for (int i=0; i<cfaces.size(); ++i) {
@@ -167,7 +167,7 @@ int main(int argc, char** argv)
         std::cout << "FAIL: " << f << std::endl
                   << "    normal = " << normal << std::endl
                   << "      truth = " << truth << std::endl
-                  << "      flux = " << flux[f] << std::endl
+                  << "      flux = " << flux_h[f] << std::endl
                   << "      res = " << normal * truth << std::endl;
       }
       assert(result);
