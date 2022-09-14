@@ -220,7 +220,8 @@ MeshCache<MEM>::getCellFaces(const Entity_ID c,
 {
   cfaces = RaggedGetter<MEM,AP>::get(data_.cell_faces_cached,
     data_.cell_faces,
-    [&](const int i) { assert(framework_mesh_.get()); 
+    framework_mesh_, 
+    [&](const int i) { 
       std::vector<Entity_ID> cf; 
       framework_mesh_->getCellFaces(i, cf);
       return cf; }, 
@@ -259,8 +260,6 @@ MeshCache<MEM>::getCellFacesAndDirs(const Entity_ID c,
                          MeshCache<MEM>::data_type<const int> * const dirs) const
 {
   if constexpr(MEM == MemSpace_type::DEVICE) {
-    static_assert(std::is_const_v<typename MeshCache<MEM>::data_type<const Entity_ID>::value_type>);
-    static_assert(std::is_const_v<typename MeshCache<MEM>::data_type<const int>::value_type>);
 
     if (data_.cell_faces_cached) {
       faces = data_.cell_faces.getRow<MEM>(c);
@@ -305,8 +304,6 @@ MeshCache<MEM>::getCellFacesAndBisectors(
   MeshCache<MEM>::data_type<const AmanziGeometry::Point> * const bisectors) const
 {
   if constexpr(MEM == MemSpace_type::DEVICE) {
-    static_assert(std::is_const_v<typename MeshCache<MEM>::data_type<const Entity_ID>::value_type>);
-    static_assert(std::is_const_v<typename MeshCache<MEM>::data_type<const AmanziGeometry::Point>::value_type>);
 
     if (data_.cell_faces_cached) {
       faces = data_.cell_faces.getRow<MEM>(c);
@@ -430,7 +427,6 @@ MeshCache<MEM>::getFaceCells(const Entity_ID f,
                              MeshCache<MEM>::data_type<const Entity_ID> & fcells) const
 {
   if constexpr(MEM == MemSpace_type::DEVICE) {
-    static_assert(std::is_const_v<typename MeshCache<MEM>::data_type<const Entity_ID>::value_type>);
 
     if (data_.face_cells_cached) {
       fcells = data_.face_cells.getRow<MEM>(f);
@@ -477,7 +473,8 @@ decltype(auto) MeshCache<MEM>::getCellCentroid(const Entity_ID c) const
 {
   return Getter<MEM,AP>::get(data_.cell_geometry_cached,
     data_.cell_centroids,
-    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getCellCentroid(i); }, 
+    framework_mesh_,
+    [&](const int i) { return framework_mesh_->getCellCentroid(i); }, 
     nullptr, 
     c);
 }
@@ -491,7 +488,8 @@ decltype(auto) MeshCache<MEM>::getCellVolume(const Entity_ID c) const
 {
   return Getter<MEM,AP>::get(data_.cell_geometry_cached,
     data_.cell_volumes,
-    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getCellVolume(i); }, 
+    framework_mesh_,
+    [&](const int i) { return framework_mesh_->getCellVolume(i); }, 
     nullptr, 
     c);
 }
@@ -529,7 +527,8 @@ AmanziGeometry::Point MeshCache<MEM>::getFaceCentroid(const Entity_ID f) const
 {
   return Getter<MEM,AP>::get(data_.face_geometry_cached,
     data_.face_centroids,
-    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getFaceCentroid(i); }, 
+    framework_mesh_,
+    [&](const int i) { return framework_mesh_->getFaceCentroid(i); }, 
     nullptr, 
     f);
 }
@@ -541,7 +540,8 @@ double MeshCache<MEM>::getFaceArea(const Entity_ID f) const
 {
   return Getter<MEM,AP>::get(data_.face_geometry_cached,
     data_.face_areas,
-    [&](const int i) { assert(framework_mesh_.get()); return framework_mesh_->getFaceArea(i); }, 
+    framework_mesh_,
+    [&](const int i) { return framework_mesh_->getFaceArea(i); }, 
     nullptr, 
     f);
 }
