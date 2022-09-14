@@ -328,10 +328,10 @@ struct MeshCache : public MeshCacheBase {
 
   // Get view type based on mem 
   template<typename T>
-  using data_type = typename std::conditional<
+  using data_type = std::conditional_t<
       MEM==MemSpace_type::HOST,
-      std::vector<typename std::remove_const<T>::type>,
-      Kokkos::View<T*>>::type;
+      std::vector<std::remove_const_t<T>>,
+      Kokkos::View<T*>>;
 
   std::shared_ptr<const MeshFramework> getMeshFramework() const { return framework_mesh_; }
   std::shared_ptr<MeshFramework> getMeshFramework() { return framework_mesh_; }
