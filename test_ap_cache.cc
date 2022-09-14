@@ -12,22 +12,44 @@ int main(int argc, char** argv)
 {
   Kokkos::initialize(argc, argv);
   {
-    auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,3,3,3);
+
+    assert(argc == 4); 
+    const std::size_t nx = atoi(argv[1]); 
+    const std::size_t ny = atoi(argv[2]); 
+    const std::size_t nz = atoi(argv[3]); 
+
+    std::cout<<"nx: "<<nx<<" ny: "<<ny<<" nz: "<<nz<<std::endl;
+
+    Kokkos::Timer timer; 
+    double start = timer.seconds(); 
+
+    auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,nx,ny,nz);
     MeshCache<MemSpace_type::DEVICE> mesh(framework_mesh);
+    MeshCache<MemSpace_type::HOST> host_mesh(mesh); 
+    assert(nx*ny*nz == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
+    //assert(close(0.3333333*0.3333333*0.3333333, host_mesh.getCellVolume<AP>(0), 1.e-5));
+
+    Kokkos::fence(); 
+    double stop = timer.seconds(); 
+
+    std::cout<<"ncells: "<<mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED)<<std::endl;
+    std::cout<<"Construction: "<<stop-start<<"s"<<std::endl;
+    
+    start = timer.seconds(); 
+
     mesh.cacheFaceCells();
     mesh.cacheCellFaces();
     mesh.cacheCellGeometry();
     mesh.cacheFaceGeometry();
-
     mesh.destroyFramework();
 
     // Host access mesh
-    MeshCache<MemSpace_type::HOST> host_mesh(mesh);
+    Kokkos::fence(); 
+    stop = timer.seconds(); 
+    std::cout<<"Caching: "<<stop-start<<"s"<<std::endl;
+    start = timer.seconds();
 
     static const AccessPattern AP = AccessPattern::CACHE;
-
-    assert(3*3*3 == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
-    assert(close(0.3333333*0.3333333*0.3333333, host_mesh.getCellVolume<AP>(0), 1.e-5));
 
 
     // do some realish work
@@ -37,7 +59,7 @@ int main(int argc, char** argv)
     auto sum_device = view<MemSpace_type::DEVICE>(sums);
     Kokkos::parallel_for("normal O(N) work", ncells,
                          KOKKOS_LAMBDA(const int& c) {
-                           auto cfaces = mesh.getCellFaces(c);
+                           auto cfaces = mesh.getCellFaces<AP>(c);
                            auto cc = mesh.getCellCentroid<AP>(c);
                            AmanziGeometry::Point sum(0., 0., 0.);
                            for (int i=0; i<cfaces.size(); ++i) {
@@ -145,11 +167,13 @@ int main(int argc, char** argv)
         std::cout << "FAIL: " << f << std::endl
                   << "    normal = " << normal << std::endl
                   << "      truth = " << truth << std::endl
-                  << "      flux = " << flux[f] << std::endl
+                  << "      flux = " << flux_h[f] << std::endl
                   << "      res = " << normal * truth << std::endl;
       }
       assert(result);
     }
+    Kokkos::fence(); 
+    std::cout<<"Computation: "<<timer.seconds()-start<<"s"<<std::endl;
   }
   Kokkos::finalize();
 }

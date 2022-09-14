@@ -8,9 +8,28 @@ using namespace Amanzi::AmanziMesh;
 
 int main(int argc, char** argv)
 {
-  MeshSimple mesh(0,0,0,1,1,1,3,3,3);
-  assert(3*3*3 == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
-  assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume(0), 1.e-5));
+
+  assert(argc == 4); 
+  const std::size_t nx = atoi(argv[1]);
+  const std::size_t ny = atoi(argv[2]); 
+  const std::size_t nz = atoi(argv[3]); 
+
+  std::cout<<"nx: "<<nx<<" ny: "<<ny<<" nz: "<<nz<<std::endl;
+
+  Kokkos::Timer timer; 
+  double start = timer.seconds(); 
+
+  MeshSimple mesh(0,0,0,1,1,1,nx,ny,nz);
+  assert(nx*ny*nz == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
+  //assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume(0), 1.e-5));
+
+  Kokkos::fence(); 
+  double stop = timer.seconds(); 
+
+  std::cout<<"ncells: "<<mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED)<<std::endl; 
+  std::cout<<"Construction: "<<stop-start<<"s"<<std::endl;
+  
+  start = timer.seconds(); 
 
   // do some realish work
   Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
@@ -118,5 +137,7 @@ int main(int argc, char** argv)
     }
     assert(result);
   }
+  Kokkos::fence(); 
+  std::cout<<"Computation: "<<timer.seconds()-start<<"s"<<std::endl;
 
 }

@@ -326,6 +326,13 @@ struct MeshCache : public MeshCacheBase {
   template<MemSpace_type MEM_OTHER>
   MeshCache(MeshCache<MEM_OTHER>& other);
 
+  // Get view type based on mem 
+  template<typename T>
+  using data_type = typename std::conditional<
+      MEM==MemSpace_type::HOST,
+      std::vector<typename std::remove_const<T>::type>,
+      Kokkos::View<T*>>::type;
+
   std::shared_ptr<const MeshFramework> getMeshFramework() const { return framework_mesh_; }
   std::shared_ptr<MeshFramework> getMeshFramework() { return framework_mesh_; }
   void setMeshFramework(const std::shared_ptr<MeshFramework>& framework_mesh);
@@ -378,12 +385,12 @@ struct MeshCache : public MeshCacheBase {
   // Accessors and Mutators
   // ----------------------
   // space dimension describes the dimension of coordinates in space
-  std::size_t getSpaceDimension() const { return space_dim_; }
+  KOKKOS_INLINE_FUNCTION std::size_t getSpaceDimension() const { return space_dim_; }
   void setSpaceDimension(unsigned int dim) { space_dim_ = dim; }
 
   // manifold dimension describes the dimensionality of the corresponding R^n
   // manifold onto which this mesh can be projected.
-  std::size_t getManifoldDimension() const { return manifold_dim_; }
+  KOKKOS_INLINE_FUNCTION std::size_t getManifoldDimension() const { return manifold_dim_; }
   void setManifoldDimension(const unsigned int dim) { manifold_dim_ = dim; }
 
   // mesh properties
@@ -427,7 +434,7 @@ struct MeshCache : public MeshCacheBase {
   // cell centroids
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
-  AmanziGeometry::Point getCellCentroid(const Entity_ID c) const;
+  decltype(auto) getCellCentroid(const Entity_ID c) const;
 
   // face centroids
   template<AccessPattern AP = AccessPattern::DEFAULT>
@@ -444,8 +451,8 @@ struct MeshCache : public MeshCacheBase {
 
   // extent
   template<AccessPattern AP = AccessPattern::DEFAULT>
-  KOKKOS_INLINE_FUNCTION
-  double getCellVolume(const Entity_ID c) const;
+  KOKKOS_INLINE_FUNCTION // double
+  decltype(auto) getCellVolume(const Entity_ID c) const;
 
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
@@ -506,6 +513,7 @@ struct MeshCache : public MeshCacheBase {
   size_type getCellNumFaces(const Entity_ID c) const;
 
   // note, no AccessPattern -- as this creates a view there is no need
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   decltype(auto) // cEntity_ID_View
   getCellFaces(const Entity_ID c) const;
@@ -522,24 +530,22 @@ struct MeshCache : public MeshCacheBase {
   decltype(auto) // Kokkos::pair<cEntity_ID_View, cPoint_View>
   getCellFacesAndBisectors(const Entity_ID c) const;
 
-  template<typename cEntity_ID_View_type>
+  template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   void getCellFaces(const Entity_ID c,
-                    cEntity_ID_View_type& faces) const;
+                    data_type<const Entity_ID>& faces) const;
 
-  template<typename cEntity_ID_View_type, typename cEntity_Direction_View_type>
   KOKKOS_INLINE_FUNCTION
   void getCellFacesAndDirs(const Entity_ID c,
-                           cEntity_ID_View_type& faces,
-                           cEntity_Direction_View_type * const dirs) const;
+                           MeshCache<MEM>::data_type<const Entity_ID>& faces,
+                           MeshCache<MEM>::data_type<const int> * const dirs) const;
 
 
-  template<typename cEntity_ID_View_type, typename cPoint_View_type>
   KOKKOS_INLINE_FUNCTION
   void getCellFacesAndBisectors(
           const Entity_ID c,
-          cEntity_ID_View_type& faces,
-          cPoint_View_type * const bisectors) const;
+          MeshCache<MEM>::data_type<const Entity_ID>& faces,
+          MeshCache<MEM>::data_type<const AmanziGeometry::Point> * const bisectors) const;
 
   // //
   // // Downward adjacency -- edges of a cell
@@ -681,11 +687,10 @@ struct MeshCache : public MeshCacheBase {
   KOKKOS_INLINE_FUNCTION
   const Entity_ID& getFaceCell(const Entity_ID f, const size_type i) const;
 
-  template<typename cEntity_ID_View_type>
   KOKKOS_INLINE_FUNCTION
   void getFaceCells(const Entity_ID f,
                     const Parallel_type ptype,
-                    cEntity_ID_View_type& cells) const;
+                    MeshCache<MEM>::data_type<const Entity_ID> & cells) const;
 
   // // Cells of a given Parallel_type connected to an edge
   // //
@@ -784,7 +789,7 @@ struct MeshCache : public MeshCacheBase {
 
  private:
   // common error messaging
-  void throwAccessError_(const std::string& func_name) const;
+  KOKKOS_INLINE_FUNCTION void throwAccessError_(const std::string& func_name) const;
 
 };
 
