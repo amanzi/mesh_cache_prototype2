@@ -12,11 +12,10 @@ int main(int argc, char** argv)
 {
   Kokkos::initialize(argc, argv);
   {
-
-    assert(argc == 4); 
-    const std::size_t nx = atoi(argv[1]); 
-    const std::size_t ny = atoi(argv[2]); 
-    const std::size_t nz = atoi(argv[3]); 
+    std::size_t nx=10, ny=10, nz=10;
+    if (argc > 3) nz = atoi(argv[3]);
+    if (argc > 2) ny = atoi(argv[2]);
+    if (argc > 1) nx = atoi(argv[1]);
 
     std::cout<<"nx: "<<nx<<" ny: "<<ny<<" nz: "<<nz<<std::endl;
 
