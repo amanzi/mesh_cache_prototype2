@@ -11,24 +11,49 @@ using namespace Amanzi::AmanziMesh;
 int main(int argc, char** argv)
 {
   Kokkos::initialize(argc, argv);
-  {
-    auto framework = std::make_shared<MeshSimple>(0,0,0,1,1,1,3,3,3);
+  {std::size_t nx=10, ny=10, nz=10;
+    if (argc > 3) nz = atoi(argv[3]);
+    if (argc > 2) ny = atoi(argv[2]);
+    if (argc > 1) nx = atoi(argv[1]);
+
+    std::cout<<"nx: "<<nx<<" ny: "<<ny<<" nz: "<<nz<<std::endl;
+
+    auto framework = std::make_shared<MeshSimple>(0,0,0,1,1,1,nx,ny,nz);
     MeshCache<MemSpace_type::DEVICE> mesh_on_device(framework);
     mesh_on_device.cacheFaceCells();
     mesh_on_device.cacheCellFaces();
+    mesh_on_device.cacheFaceNodes(); 
     mesh_on_device.cacheCellGeometry();
     mesh_on_device.cacheFaceGeometry();
+    mesh_on_device.cacheNodeCoordinates();
 
     MeshCache<MemSpace_type::HOST> mesh(mesh_on_device);
     mesh_on_device.destroyFramework();
     mesh.destroyFramework();
 
-    assert(3*3*3 == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
-    assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume(0), 1.e-5));
+    assert(nx*ny*nz == mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));
+    //assert(close(0.3333333*0.3333333*0.3333333, mesh.getCellVolume(0), 1.e-5));
 
     // do some realish work
     Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
     Entity_ID nfaces = mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
+
+    // Check compute 
+    for (Entity_ID c=0; c!=ncells; ++c) {
+      Entity_ID_List cfaces;
+      mesh.getCellFaces(c, cfaces);
+      auto cc = mesh.getCellCentroid<AccessPattern::COMPUTE>(c);
+      AmanziGeometry::Point sum(0., 0., 0.);
+      for (auto f : cfaces) {
+        assert(f < nfaces);
+        auto fc = mesh.getFaceCentroid<AccessPattern::COMPUTE>(f);
+
+        // compute sum of all bisectors
+        sum += (fc - cc);
+      }
+      assert(close(0., AmanziGeometry::norm(sum), 0., 1.e-6));
+    }
+
     for (Entity_ID c=0; c!=ncells; ++c) {
       Entity_ID_List cfaces;
       mesh.getCellFaces(c, cfaces);

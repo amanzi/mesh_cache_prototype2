@@ -27,6 +27,23 @@ int main(int argc, char** argv)
 
     // do some realish work
     Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
+
+#if 1
+    const int nnodes = 20; 
+
+    Kokkos::parallel_for(mesh.getPolicy(ncells,nnodes),
+      KOKKOS_LAMBDA(Kokkos::TeamPolicy<>::member_type tm){
+        int t = tm.league_rank () * tm.team_size () +
+                tm.team_rank ();
+        if(t >= ncells) return; 
+        Kokkos::View<Entity_ID*, Kokkos::DefaultExecutionSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
+          nodes (tm.team_scratch(1), nnodes*tm.team_size());
+        // Get my subbiew of the shared mem 
+        auto sv = Kokkos::subview(nodes, Kokkos::make_pair(t*nnodes,(t+1)*nnodes));
+        mesh.getCellNodes(t,sv);
+    });
+#endif 
+
     Entity_ID nfaces = mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
     Kokkos::DualView<double*> sums("sums", ncells);
     auto sum_device = view<MemSpace_type::DEVICE>(sums);

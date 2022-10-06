@@ -218,30 +218,38 @@ enum class AccessPattern : int {
   FRAMEWORK
 };
 
-
+template<MemSpace_type MEM>
+struct MeshCache;
 
 template<MemSpace_type MEM = MemSpace_type::HOST, AccessPattern AP = AccessPattern::DEFAULT> 
 struct Getter {
-  template<typename DATA, typename MF, typename FF, typename CF> 
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF> 
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get(bool cached, DATA& d, MF& mf, FF&& f, CF&& c, const Entity_ID i){
+  get(bool cached, DATA& d, MF& mf, FF&& f, CFD&& cd, CF&& c, const Entity_ID i){
       using type_t = typename DATA::t_dev::traits::value_type; 
       // To avoid the cast to non-reference 
-      static_assert(MEM == MemSpace_type::HOST); 
       if (cached) return static_cast<type_t>(view<MEM>(d)(i));
-      if constexpr (!std::is_same<FF,decltype(nullptr)>::value)
-        if(mf.get())
-          return f(i);
-      if constexpr (!std::is_same<CF,decltype(nullptr)>::value)
-        return c(i); 
+      if constexpr(MEM == MemSpace_type::HOST){
+        if constexpr (!std::is_same_v<FF,decltype(nullptr)>)
+          if(mf.get())
+            return f(i);
+        if constexpr (!std::is_same_v<CF,decltype(nullptr)>)
+          return c(i);
+        assert(false); 
+      }else{
+        static_assert(MEM==MemSpace_type::DEVICE); 
+        if constexpr (!std::is_same_v<CFD,decltype(nullptr)>)
+          return cd(i);
+        assert(false); 
+      } 
   }
 }; // Getter
 
 template<MemSpace_type MEM> 
 struct Getter<MEM,AccessPattern::CACHE> {
-  template<typename DATA, typename MF, typename FF, typename CF> 
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF> 
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get(bool cached, DATA& d, MF&, FF&& f, CF&& c, const Entity_ID i){
+  get(bool cached, DATA& d, MF&, FF&&, CFD&&, CF&&, const Entity_ID i){
       assert(cached);
       return view<MEM>(d)(i);
   }
@@ -249,9 +257,9 @@ struct Getter<MEM,AccessPattern::CACHE> {
 
 template<MemSpace_type MEM> 
 struct Getter<MEM,AccessPattern::FRAMEWORK> {
-  template<typename DATA, typename MF, typename FF, typename CF> 
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF> 
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get(bool cached, DATA& d, MF& mf, FF&& f, CF&& c, const Entity_ID i){
+  get(bool, DATA&, MF& mf, FF&& f, CFD&&, CF&&, const Entity_ID i){
       static_assert(!std::is_same<FF,decltype(nullptr)>::value); 
       static_assert(MEM == MemSpace_type::HOST);
       assert(mf.get()); 
@@ -262,13 +270,17 @@ struct Getter<MEM,AccessPattern::FRAMEWORK> {
 
 template<MemSpace_type MEM> 
 struct Getter<MEM,AccessPattern::COMPUTE> {
-  template<typename DATA, typename MF, typename FF, typename CF> 
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF> 
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get(bool cached, DATA& d, MF&, FF&& f, CF&& c, const Entity_ID i){
+  get(bool, DATA&, MF&, FF&&, CFD&& cd, CF&& c, const Entity_ID i){
+    if constexpr(MEM == MemSpace_type::HOST){
       static_assert(!std::is_same<CF,decltype(nullptr)>::value); 
-      // here is where we would normally put something like
-      // return MeshAlgorithms::computeCellVolume(*this, c);
-      // and implement the algorithm on device
+      return c(i); 
+    }else{
+      static_assert(MEM==MemSpace_type::DEVICE); 
+      static_assert(!std::is_same<CFD,decltype(nullptr)>::value); 
+      return cd(i); 
+    }
   }
 }; // Getter
 
@@ -276,27 +288,34 @@ struct Getter<MEM,AccessPattern::COMPUTE> {
 // Getters for raggedViews
 template<MemSpace_type MEM = MemSpace_type::HOST, AccessPattern AP = AccessPattern::DEFAULT>
 struct RaggedGetter{ 
-  template<typename DATA, typename MF, typename FF, typename CF>
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF>
   static KOKKOS_INLINE_FUNCTION decltype(auto)
-  get (bool cached, DATA& d, MF& mf, FF&& f, CF&& c, const Entity_ID n) {
-    static_assert(MEM == MemSpace_type::HOST); 
-    if (cached) {
-      auto v = d.template getRow<MEM>(n);
-      return asVector(v); 
-    }
-    if constexpr (!std::is_same<FF,decltype(nullptr)>::value)
-      if(mf.get())
-       return f(n); 
-    if constexpr (!std::is_same<CF,decltype(nullptr)>::value) 
-      return c(c); 
+  get (bool cached, DATA& d, MF& mf, FF&& f, CFD&& cd, CF&& c, const Entity_ID n) {
+    if constexpr(MEM == MemSpace_type::HOST){
+      if (cached) {
+        auto v = d.template getRow<MEM>(n);
+        return asVector(v); 
+      }
+      if constexpr (!std::is_same<FF,decltype(nullptr)>::value)
+        if(mf.get())
+        return f(n); 
+      if constexpr (!std::is_same<CF,decltype(nullptr)>::value) 
+        return c(c);
+    } else {
+      if (cached) {
+        return d.template getRow<MEM>(n);
+      }
+      if constexpr (!std::is_same<CF,decltype(nullptr)>::value) 
+        return cd(c);
+    } 
   }
 };
 
 template<MemSpace_type MEM>
 struct RaggedGetter<MEM,AccessPattern::CACHE>{
-  template<typename DATA, typename MF, typename FF, typename CF>
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF>
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get (bool cached, DATA& d, MF&, FF&&, CF&&, const Entity_ID n) { 
+  get (bool cached, DATA& d, MF&, FF&&, CFD&&, CF&&, const Entity_ID n) { 
     assert(cached);
     return d.template getRow<MEM>(n); 
   }
@@ -304,9 +323,9 @@ struct RaggedGetter<MEM,AccessPattern::CACHE>{
 
 template<MemSpace_type MEM>
 struct RaggedGetter<MEM,AccessPattern::FRAMEWORK>{
-  template<typename DATA, typename MF, typename FF, typename CF>
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF>
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get (bool cached, DATA&, MF& mf, FF&& f, CF&& c, const Entity_ID n) { 
+  get (bool, DATA&, MF& mf, FF&& f, CFD&&, CF&&, const Entity_ID n) { 
     static_assert(!std::is_same<FF,decltype(nullptr)>::value); 
     static_assert(MEM == MemSpace_type::HOST);
     assert(mf.get()); 
@@ -316,13 +335,17 @@ struct RaggedGetter<MEM,AccessPattern::FRAMEWORK>{
 
 template<MemSpace_type MEM>
 struct RaggedGetter<MEM,AccessPattern::COMPUTE>{
-  template<typename DATA, typename MF, typename FF, typename CF>
+  template<typename DATA, typename MF, typename FF, typename CFD, typename CF>
   static KOKKOS_INLINE_FUNCTION decltype(auto) 
-  get (bool cached, DATA&, MF&, FF&&, CF&& c, const std::string& s, const Entity_ID n) { 
+  get (bool, DATA&, MF&, FF&&, CFD&& cd, CF&& c, const Entity_ID n) { 
+    if constexpr(MEM == MemSpace_type::HOST){
       static_assert(!std::is_same<CF,decltype(nullptr)>::value); 
-      // here is where we would normally put something like
-      // return MeshAlgorithms::computeCellVolume(*this, c);
-      // and implement the algorithm on device 
+      return c(n); 
+    }else{
+      static_assert(MEM==MemSpace_type::DEVICE); 
+      static_assert(!std::is_same<CFD,decltype(nullptr)>::value); 
+      return cd(n); 
+    }
   }
 };
 

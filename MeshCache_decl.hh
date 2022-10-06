@@ -229,6 +229,8 @@ struct MeshCacheData {
 
   bool parent_entities_cached;
 
+  static constexpr inline int static_max_nnodes_ = 20; 
+  int max_nnodes_; 
 
   // geometry
   Point_DualView node_coordinates;
@@ -279,6 +281,28 @@ struct MeshCacheData {
 // utilization of the "converting" constructor
 struct MeshCacheBase {
 
+
+    // Contant known at runtime 
+    auto getPolicy(const std::size_t nloop, const std::size_t nlocals){
+      int nthreads = ThreadsPerTeams<Kokkos::DefaultExecutionSpace>(); 
+      int nteams = (nloop+nthreads-1)/nthreads;
+      
+      //int nteams = 100; 
+      //int mem = nlocals*sizeof(Entity_ID); 
+
+      int mem = nlocals*sizeof(Entity_ID); 
+      int totmem = mem*nteams;
+
+      //auto policy = Kokkos::TeamPolicy<>(nteams, Kokkos::AUTO())
+      //  .set_scratch_size(1, Kokkos::PerThread(mem));
+
+      auto policy = Kokkos::TeamPolicy<>(nteams, nthreads)
+        .set_scratch_size(1, Kokkos::PerThread(mem));
+
+      return policy; 
+    }
+
+
   MeshCacheBase();
 
   // standard things
@@ -326,13 +350,19 @@ struct MeshCache : public MeshCacheBase {
   template<MemSpace_type MEM_OTHER>
   MeshCache(MeshCache<MEM_OTHER>& other);
 
-  // Get view type based on mem 
   template<typename T>
-  using data_type = std::conditional_t<
+  struct List_impl{
+    using type = std::conditional_t<
       MEM==MemSpace_type::HOST,
       std::vector<std::remove_const_t<T>>,
       Kokkos::View<T*>>;
+    
+  };
 
+  // Get view type based on mem
+  template<typename T> 
+  using List = typename List_impl<T>::type; 
+  
   std::shared_ptr<const MeshFramework> getMeshFramework() const { return framework_mesh_; }
   std::shared_ptr<MeshFramework> getMeshFramework() { return framework_mesh_; }
   void setMeshFramework(const std::shared_ptr<MeshFramework>& framework_mesh);
@@ -353,7 +383,7 @@ struct MeshCache : public MeshCacheBase {
   void cacheFaceGeometry();
   void cacheFaceCells();
   // void cacheFaceEdges();
-  // void cacheFaceNodes();
+  void cacheFaceNodes();
   // void cacheFaceCoordinates();
 
   // // edge centroid, length, vector
@@ -367,7 +397,7 @@ struct MeshCache : public MeshCacheBase {
   // void cacheNodeCells();
   // void cacheNodeFaces();
   // void cacheNodeEdges();
-  // void cacheNodeCoordinates();
+  void cacheNodeCoordinates();
 
   // // Parent entities may need to be cached too
   // void cacheParentEntities();
@@ -409,28 +439,14 @@ struct MeshCache : public MeshCacheBase {
   // Geometry
   //---------------------
   // node locations
-  // template<AccessPattern AP = AccessPattern::DEFAULT>
-  // KOKKOS_INLINE_FUNCTION
-  // decltype(auto) // const AmanziGeometry::Point
-  // getNodeCoordinate(const Entity_ID n) const;
+  template<AccessPattern AP = AccessPattern::DEFAULT>
 
+  KOKKOS_INLINE_FUNCTION
+  decltype(auto) // const AmanziGeometry::Point
+  getNodeCoordinate(const Entity_ID n) const;
   // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // void setNodeCoordinate(const Entity_ID n, const AmanziGeometry::Point& coord);
-
-  // // coordinate views
-  // template<AccessPattern AP = AccessPattern::DEFAULT>
-  // KOKKOS_INLINE_FUNCTION
-  // cPoint_View getEdgeCoordinates(const Entity_ID e) const;
-
-  // template<AccessPattern AP = AccessPattern::DEFAULT>
-  // KOKKOS_INLINE_FUNCTION
-  // cPoint_View getFaceCoordinates(const Entity_ID f) const;
-
-  // template<AccessPattern AP = AccessPattern::DEFAULT>
-  // KOKKOS_INLINE_FUNCTION
-  // cPoint_View getCellCoordinates(const Entity_ID c) const;
-
   // cell centroids
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
@@ -439,7 +455,7 @@ struct MeshCache : public MeshCacheBase {
   // face centroids
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
-  AmanziGeometry::Point getFaceCentroid(const Entity_ID f) const;
+  decltype(auto) getFaceCentroid(const Entity_ID f) const;
 
   // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
@@ -533,19 +549,19 @@ struct MeshCache : public MeshCacheBase {
   template<AccessPattern AP = AccessPattern::DEFAULT>
   KOKKOS_INLINE_FUNCTION
   void getCellFaces(const Entity_ID c,
-                    data_type<const Entity_ID>& faces) const;
+                    List<const Entity_ID>& faces) const;
 
   KOKKOS_INLINE_FUNCTION
   void getCellFacesAndDirs(const Entity_ID c,
-                           MeshCache<MEM>::data_type<const Entity_ID>& faces,
-                           MeshCache<MEM>::data_type<const int> * const dirs) const;
+                           List<const Entity_ID>& faces,
+                           List<const int> * const dirs) const;
 
 
   KOKKOS_INLINE_FUNCTION
   void getCellFacesAndBisectors(
           const Entity_ID c,
-          MeshCache<MEM>::data_type<const Entity_ID>& faces,
-          MeshCache<MEM>::data_type<const AmanziGeometry::Point> * const bisectors) const;
+          List<const Entity_ID>& faces,
+          List<const AmanziGeometry::Point> * const bisectors) const;
 
   // //
   // // Downward adjacency -- edges of a cell
@@ -569,16 +585,16 @@ struct MeshCache : public MeshCacheBase {
   // KOKKOS_INLINE_FUNCTION
   // size_type getCellNumNodes(const Entity_ID c) const;
 
-  // KOKKOS_INLINE_FUNCTION
-  // cEntity_ID_View getCellNodes(const Entity_ID c) const;
+  KOKKOS_INLINE_FUNCTION
+ decltype(auto) getCellNodes(const Entity_ID c) const;
 
-  // KOKKOS_INLINE_FUNCTION
-  // const Entity_ID& getCellNode(const Entity_ID c, const size_type i) const;
+  KOKKOS_INLINE_FUNCTION
+  Entity_ID getCellNode(const Entity_ID c, const size_type i) const;
 
   // //[[deprecated("Prefer to use non-void variant that returns nodes directly")]]
-  // KOKKOS_INLINE_FUNCTION
-  // void getCellNodes(const Entity_ID c, cEntity_ID_View& nodes) const;
-
+  template<typename ViewType> // Can be normal or unmanaged
+  KOKKOS_INLINE_FUNCTION
+  void getCellNodes(const Entity_ID c, ViewType& nodes) const;
   // // Get edges of a face and directions in which the face uses the edges.
   // //
   // // In 3D, edge direction is 1 when it is oriented counter clockwise
@@ -624,17 +640,14 @@ struct MeshCache : public MeshCacheBase {
   // template<AccessPattern AP = AccessPattern::DEFAULT>
   // KOKKOS_INLINE_FUNCTION
   // size_type getFaceNumNodes(const Entity_ID f) const;
+  KOKKOS_INLINE_FUNCTION
+  decltype(auto) getFaceNodes(const Entity_ID f) const;
 
-  // KOKKOS_INLINE_FUNCTION
-  // cEntity_ID_View getFaceNodes(const Entity_ID f) const;
-
-  // KOKKOS_INLINE_FUNCTION
-  // const Entity_ID& getFaceNode(const Entity_ID f, const size_type i) const;
-
+  KOKKOS_INLINE_FUNCTION
+  const Entity_ID& getFaceNode(const Entity_ID f, const size_type i) const;
   // //[[deprecated("Prefer to use non-void variant that returns nodes directly")]]
-  // KOKKOS_INLINE_FUNCTION
-  // void getFaceNodes(const Entity_ID f, cEntity_ID_View& nodes) const;
-
+  KOKKOS_INLINE_FUNCTION
+  void getFaceNodes(const Entity_ID f, List<const Entity_ID>& nodes) const;
   // //
   // // NOT CURRENTLY IMPLEMENTED, here to satisfy the interface
   // //
@@ -690,7 +703,7 @@ struct MeshCache : public MeshCacheBase {
   KOKKOS_INLINE_FUNCTION
   void getFaceCells(const Entity_ID f,
                     const Parallel_type ptype,
-                    MeshCache<MEM>::data_type<const Entity_ID> & cells) const;
+                    List<const Entity_ID> & cells) const;
 
   // // Cells of a given Parallel_type connected to an edge
   // //

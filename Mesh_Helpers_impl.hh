@@ -384,6 +384,18 @@ Entity_ID_List getCellFaceAdjacentCells(const Mesh_type& mesh,
   return adj_cells;
 }
 
+template<class Mesh_type> 
+KOKKOS_INLINE_FUNCTION
+AmanziGeometry::Point getFaceCentroid(const Mesh_type& mesh, const Entity_ID f)
+{
+  auto nodes = mesh.getFaceNodes(f); 
+  AmanziGeometry::Point res; 
+  for(int i = 0 ; i < nodes.size(); ++i){
+    auto p = mesh.template getNodeCoordinate<AccessPattern::CACHE>(nodes[i]); 
+    res = res + p;
+  }
+  return res/nodes.size(); 
+}
 
 } // namespace MeshAlgorithms
 } // namespace AmanziMesh
