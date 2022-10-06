@@ -3,6 +3,8 @@
 #include "MeshSimple.hh"
 #include "MeshCache.hh"
 
+#include "span.hh"
+
 using namespace Amanzi;
 using namespace Amanzi::AmanziMesh;
 
@@ -28,7 +30,7 @@ int main(int argc, char** argv)
     // do some realish work
     Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
 
-#if 1
+#if !(KOKKOS_CUDA)
     const int nnodes = 20; 
 
     Kokkos::parallel_for(mesh.getPolicy(ncells,nnodes),
@@ -36,11 +38,11 @@ int main(int argc, char** argv)
         int t = tm.league_rank () * tm.team_size () +
                 tm.team_rank ();
         if(t >= ncells) return; 
-        Kokkos::View<Entity_ID*, Kokkos::DefaultExecutionSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-          nodes (tm.team_scratch(1), nnodes*tm.team_size());
-        // Get my subbiew of the shared mem 
-        auto sv = Kokkos::subview(nodes, Kokkos::make_pair(t*nnodes,(t+1)*nnodes));
-        mesh.getCellNodes(t,sv);
+        Entity_ID* team_shared_a = (Entity_ID*)
+          tm.team_shmem().get_shmem(sizeof(Entity_ID));
+        // Attach memory to a std::vector
+        span<Entity_ID> sp(team_shared_a, nnodes); 
+        mesh.getCellNodes(t,sp);
     });
 #endif 
 

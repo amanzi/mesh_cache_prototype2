@@ -17,6 +17,8 @@
 #include "MeshFramework.hh"
 #include "Mesh_HelpersDevice_decl.hh"
 
+#include "span.hh"
+
 namespace Amanzi {
 namespace AmanziMesh {
 
@@ -596,7 +598,11 @@ MeshCache<MEM>::getCellNodes(const Entity_ID c, ViewType& nodes) const{
       auto tmp = Kokkos::subview(nodes,Kokkos::make_pair(0,i)); 
       nodes = tmp; 
   }else{
-    nodes = MeshAlgorithms::computeCellNodes(*this,c); 
+    if constexpr(std::is_same_v<ViewType,span<typename ViewType::value_type>>){
+      auto v = MeshAlgorithms::computeCellNodes(*this,c); 
+      nodes = ViewType{v.data(),v.size()}; 
+    } else 
+      nodes = MeshAlgorithms::computeCellNodes(*this,c); 
   }
 }
 
