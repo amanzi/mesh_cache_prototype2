@@ -33,6 +33,13 @@ int main(int argc, char** argv)
   // do some realish work
   Entity_ID ncells = mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
   Entity_ID nfaces = mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
+
+  for(int i = 0 ; i < ncells ; ++i){
+      Entity_ID_List cnodes; 
+      mesh.getCellNodes(i,cnodes);
+  }; 
+
+  
   for (Entity_ID c=0; c!=ncells; ++c) {
     Entity_ID_List cfaces;
     mesh.getCellFaces(c, cfaces);

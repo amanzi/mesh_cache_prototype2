@@ -37,26 +37,24 @@ class View_iter {
   using pointer = value_type*;
   using reference = value_type&;
 
-  static_assert(Kokkos::SpaceAccessibility<typename Kokkos::View<T*, Args...>::execution_space,
-                typename Kokkos::HostSpace>::accessible);
   using View_type = Kokkos::View<T*, Args...>;
 
 public:
-  View_iter(const View_type& v) : View_iter(v,0) {}
-  View_iter(const View_type& v, int i) : v_(v), i_(i) {}
+  KOKKOS_INLINE_FUNCTION View_iter(const View_type& v) : View_iter(v,0) {}
+  KOKKOS_INLINE_FUNCTION View_iter(const View_type& v, int i) : v_(v), i_(i) {}
 
-  reference operator*() const { return v_(i_); }
-  pointer operator->() { return &v_(i_); }
+  KOKKOS_INLINE_FUNCTION reference operator*() const { return v_(i_); }
+  KOKKOS_INLINE_FUNCTION pointer operator->() { return &v_(i_); }
 
   // prefix
-  View_iter& operator++() { i_++; return *this; }
+  KOKKOS_INLINE_FUNCTION View_iter& operator++() { i_++; return *this; }
   // postfix
-  View_iter operator++(int) { View_iter tmp(*this); ++(*this); return tmp; }
+  KOKKOS_INLINE_FUNCTION View_iter operator++(int) { View_iter tmp(*this); ++(*this); return tmp; }
 
-  friend bool operator==(const View_iter& a, const View_iter& b) {
+  KOKKOS_INLINE_FUNCTION friend bool operator==(const View_iter& a, const View_iter& b) {
     return a.v_ == b.v_ && a.i_ == b.i_;
   }
-  friend bool operator!=(const View_iter& a, const View_iter& b) {
+  KOKKOS_INLINE_FUNCTION friend bool operator!=(const View_iter& a, const View_iter& b) {
     return !(a == b);
   }
 
@@ -69,13 +67,13 @@ private:
 
 template<typename T, typename ...Args>
 Impl::View_iter<T, Args...>
-begin(const View<T*, Args...>& view) {
+KOKKOS_INLINE_FUNCTION begin(const View<T*, Args...>& view) {
   return Impl::View_iter<T, Args...>(view);
 }
 
 template<typename T, typename ...Args>
 Impl::View_iter<T, Args...>
-end(const View<T*, Args...>& view) {
+KOKKOS_INLINE_FUNCTION end(const View<T*, Args...>& view) {
   return Impl::View_iter<T, Args...>(view, view.size());
 }
 
@@ -232,6 +230,28 @@ struct RaggedArray_DualView {
 
 };
 
+template<typename T, typename List> 
+KOKKOS_INLINE_FUNCTION
+bool is_present(const T& v, const List& l){ 
+  for(int i = 0 ; i < l.size(); ++i){ 
+    if(v == l[i])
+      return true; 
+  }
+  return false; 
+}
+
+// Find the right number of threads 
+template<typename T>
+constexpr int ThreadsPerTeams(){ 
+  #ifdef KOKKOS_ENABLE_CUDA
+  if constexpr (std::is_same_v<T,Kokkos::Cuda>){
+    return 32;
+  }else // (std::is_same_v<T,Kokkos::Serial>){
+  #endif
+  { 
+    return 1;
+  }
+}
 } // namespace Amanzi
 
 

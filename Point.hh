@@ -138,13 +138,16 @@ class Point {
   KOKKOS_INLINE_FUNCTION friend Point operator/(const Point& p, const double& r) { return p * (1.0/r); }
 
   KOKKOS_INLINE_FUNCTION friend Point operator+(const Point& p, const Point& q) {
-    return (p.d == 2) ? Point(p[0]+q[0], p[1]+q[1]) : Point(p[0]+q[0], p[1]+q[1], p[2]+q[2]);
+    // It is faster to just do the addition than testing (and for 3d we do test + addition anyways)
+    return Point(p[0]+q[0], p[1]+q[1], p[2]+q[2]);
   }
   KOKKOS_INLINE_FUNCTION friend Point operator-(const Point& p, const Point& q) {
-    return (p.d == 2) ? Point(p[0]-q[0], p[1]-q[1]) : Point(p[0]-q[0], p[1]-q[1], p[2]-q[2]);
+    // It is faster to just do the addition than testing (and for 3d we do test + addition anyways)
+    return Point(p[0]-q[0], p[1]-q[1], p[2]-q[2]);
   }
   KOKKOS_INLINE_FUNCTION friend Point operator-(const Point& p) {
-    return (p.d == 2) ? Point(-p[0], -p[1]) : Point(-p[0], -p[1], -p[2]);
+    // It is faster to just do the addition than testing (and for 3d we do test + addition anyways)
+    return Point(-p[0], -p[1], -p[2]);
   }
 
   KOKKOS_INLINE_FUNCTION friend Point operator^(const Point& p, const Point& q) {

@@ -38,8 +38,10 @@ int main(int argc, char** argv)
 
     mesh.cacheFaceCells();
     mesh.cacheCellFaces();
+    mesh.cacheFaceNodes(); 
     mesh.cacheCellGeometry();
     mesh.cacheFaceGeometry();
+    mesh.cacheNodeCoordinates();
     mesh.destroyFramework();
 
     // Host access mesh
@@ -54,6 +56,58 @@ int main(int argc, char** argv)
     // do some realish work
     Entity_ID ncells = host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED);
     Entity_ID nfaces = host_mesh.getNumEntities(Entity_kind::FACE, Parallel_type::OWNED);
+
+    const int nnodes = 20; // upper limit
+
+// Example using TeamPolicy 
+#if 1
+    Kokkos::parallel_for(mesh.getPolicy(ncells,nnodes),
+      KOKKOS_LAMBDA(Kokkos::TeamPolicy<>::member_type tm){
+        int t = tm.league_rank () * tm.team_size () +
+                tm.team_rank ();
+        if(t == 0){
+          printf("league size: %d team size: %d\n",tm.league_size(),tm.team_size());
+        }
+        if(t >= ncells) return; 
+
+        Entity_ID* mem = (Entity_ID*)
+          tm.team_shmem().get_shmem(tm.team_size()*nnodes);
+        
+        Kokkos::View<Entity_ID*, Kokkos::DefaultExecutionSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
+          nodes (tm.team_scratch(1), nnodes*tm.team_size()); 
+        // Get my subbiew of the shared mem 
+        auto sv = Kokkos::subview(nodes, Kokkos::make_pair(t*nnodes,(t+1)*nnodes));
+
+        mesh.getCellNodes(t,sv); 
+
+    }); 
+#endif 
+
+    // Check sum using COMPUTE for getFaceCentroid and getCellCentroid
+    {
+      Kokkos::DualView<double*> sums("sums", ncells);
+      auto sum_device = view<MemSpace_type::DEVICE>(sums);
+      Kokkos::parallel_for("normal O(N) work", ncells,
+                          KOKKOS_LAMBDA(const int& c) {
+                            auto cfaces = mesh.getCellFaces<AccessPattern::CACHE>(c);
+                            auto cc = mesh.getCellCentroid<AccessPattern::COMPUTE>(c); 
+                            AmanziGeometry::Point sum(0., 0., 0.);
+                            for (int i=0; i<cfaces.size(); ++i) {
+                              auto fc = mesh.getFaceCentroid<AccessPattern::COMPUTE>(cfaces[i]); 
+                              // compute sum of all bisectors
+                              // Need to check why the += is problematic
+                              auto tmp = (fc - cc);
+                              sum = sum + tmp;
+                            }
+                            sum_device(c) = AmanziGeometry::norm(sum);
+                          });
+
+      Kokkos::deep_copy(sums.view_host(),sums.view_device());
+      for (int c=0; c!=ncells; ++c) {
+        assert(close(0., view<MemSpace_type::HOST>(sums)(c), 0., 1.e-6));
+      }
+    }
+
     Kokkos::DualView<double*> sums("sums", ncells);
     auto sum_device = view<MemSpace_type::DEVICE>(sums);
     Kokkos::parallel_for("normal O(N) work", ncells,
