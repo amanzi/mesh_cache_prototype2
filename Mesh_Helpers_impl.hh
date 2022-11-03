@@ -397,6 +397,56 @@ AmanziGeometry::Point getFaceCentroid(const Mesh_type& mesh, const Entity_ID f)
   return res/nodes.size(); 
 }
 
+template<class Mesh_type> 
+AmanziGeometry::Point getCellCentroid(const Mesh_type& mesh, const Entity_ID c)
+{
+  double vol(0.0);
+  AmanziGeometry::Point res; 
+
+  // referencer point is the first vertex of cell
+  Entity_ID_List faces;
+  Entity_Direction_List dirs;
+  mesh.getCellFacesAndDirs(c, faces, &dirs);
+  int nfaces = faces.size();
+
+  // special case of column mesh - only top and bottom faces are returned 
+  if (nfaces == 2) {
+    assert(false);
+  }
+
+  // general case
+  auto nodes0 = mesh.getFaceNodes(faces[0]);
+  auto p0 = mesh.template getNodeCoordinate<AccessPattern::CACHE>(nodes0[0]); 
+
+  for (int n = 0 ; n < nfaces; ++n) {
+    int f = faces[n];
+    auto nodes = mesh.getFaceNodes(f);
+    int nnodes = nodes.size();
+
+    // for a 3D simplex
+    if (mesh.getManifoldDimension() == 3) {
+      auto pf = getFaceCentroid(mesh, f);
+
+      for (int i1 = 0 ; i1 < nnodes; ++i1) {
+        int i2 = (i1 + 1) % nnodes;
+        auto p1 = mesh.template getNodeCoordinate<AccessPattern::CACHE>(nodes[i1]); 
+        auto p2 = mesh.template getNodeCoordinate<AccessPattern::CACHE>(nodes[i2]); 
+
+        // face nodes are ordered wrt the given normal
+        // since algorithm uses exterior normal, we correct for normal orientation
+        double voltet = (((p1 - p0)^(p2 - p0)) * (pf - p0)) * dirs[i1];
+        vol += voltet;
+        res += (p0 + p1 + p2 + pf) * voltet;
+      }
+    }
+    else if (mesh.getManifoldDimension() == 2) {
+      assert(false);
+    }
+  }
+
+  return res / (24 * vol); 
+}
+
 } // namespace MeshAlgorithms
 } // namespace AmanziMesh
 } // namspace Amanzi

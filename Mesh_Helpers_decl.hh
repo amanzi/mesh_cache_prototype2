@@ -109,6 +109,9 @@ template<class Mesh_type>
 KOKKOS_INLINE_FUNCTION
 AmanziGeometry::Point getFaceCentroid(const Mesh_type& mesh, const Entity_ID f);
 
+template<class Mesh_type> 
+AmanziGeometry::Point getCellCentroid(const Mesh_type& mesh, const Entity_ID c);
+
 } // namespace MeshAlgorithms
 } // namespace AmanziMesh
 } // namspace Amanzi
