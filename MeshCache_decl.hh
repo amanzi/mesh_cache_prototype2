@@ -348,7 +348,7 @@ struct MeshCache : public MeshCacheBase {
   // DEVICE-view meshes, and visa versa.
   //
   template<MemSpace_type MEM_OTHER>
-  MeshCache(MeshCache<MEM_OTHER>& other);
+  MeshCache(const MeshCache<MEM_OTHER>& other);
 
   template<typename T>
   struct List_impl{

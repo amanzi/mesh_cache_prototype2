@@ -8,6 +8,10 @@ using namespace Amanzi::AmanziMesh;
 
 #include "test_helpers.hh"
 
+
+using MCD = MeshCache<MemSpace_type::DEVICE>; 
+using MCH = MeshCache<MemSpace_type::HOST>; 
+
 int main(int argc, char** argv)
 {
   Kokkos::initialize(argc, argv);
@@ -23,6 +27,16 @@ int main(int argc, char** argv)
     double start = timer.seconds(); 
 
     auto framework_mesh = std::make_shared<MeshSimple>(0,0,0,1,1,1,nx,ny,nz);
+
+    auto mesh_device = std::make_shared<const MCD>(framework_mesh); 
+    auto mesh_host = std::make_shared<const MCD>(*mesh_device); 
+
+    const MCD* mesh_device_1 = static_cast<const MCD*>(new MCD(framework_mesh)); 
+    const MCH* mesh_host_1 = static_cast<const MCH*>(new MCH(*mesh_device_1)); 
+
+    const MCD mesh_device_2(framework_mesh); 
+    const MCH mesh_host_2(mesh_device_2); 
+
     MeshCache<MemSpace_type::DEVICE> mesh(framework_mesh);
     MeshCache<MemSpace_type::HOST> host_mesh(mesh); 
     assert(nx*ny*nz == host_mesh.getNumEntities(Entity_kind::CELL, Parallel_type::OWNED));

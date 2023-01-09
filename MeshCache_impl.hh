@@ -71,7 +71,7 @@ MeshCacheBase::MeshCacheBase()
 
 template<MemSpace_type MEM>
 template<MemSpace_type MEM_OTHER>
-MeshCache<MEM>::MeshCache(MeshCache<MEM_OTHER>& other)
+MeshCache<MEM>::MeshCache(const MeshCache<MEM_OTHER>& other)
   : MeshCacheBase(other) {}
 
 
